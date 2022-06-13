@@ -3,6 +3,7 @@
 plugins {
     id 'java-library'
     id("com.github.johnrengelman.shadow") version "5.1.0"
+    id 'application'
 }
 
 sourceCompatibility = "1.8";
@@ -12,6 +13,8 @@ repositories {
 	mavenCentral()
     maven { url 'https://m2.dv8tion.net/releases' }
 }
+
+mainClassName='com.minecrafttas.tascomp.main.Main'
 
 dependencies {
 	implementation group: 'net.dv8tion', name: 'JDA', version: '5.0.0-alpha.12'

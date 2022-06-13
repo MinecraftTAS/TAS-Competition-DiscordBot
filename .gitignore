@@ -16,6 +16,7 @@ out/
 
 .properties
 *.properties
+configs/
 
 # JDA stuff
 dv8tion/
