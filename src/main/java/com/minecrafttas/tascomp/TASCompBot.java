@@ -89,7 +89,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		setChannelCommand.setDefaultEnabled(false);
 		
 		SubcommandGroupData addSubCommandGroup = new SubcommandGroupData("add", "Adds this channel to the config");
-		SubcommandGroupData removeSubCommandGroup = new SubcommandGroupData("remove", "Removes this channel from the config");
+		SubcommandGroupData removeSubCommandGroup = new SubcommandGroupData("remove", "Removes the property from the config");
 		
 		SubcommandData[] subcommands= {
 				new SubcommandData("organizerchannel", "The channel where dm's to the bot will get forwarded to"), 
@@ -131,7 +131,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				} else if(commandPath.startsWith("setchannel/remove")) {
 					try {
 						removeChannelFromConfig(event.getGuild(), event.getSubcommandName());
-						Util.sendSelfDestructingMessage(event.getMessageChannel(), "Removed "+ event.getSubcommandName() + " property to this channel!", 10);
+						Util.sendSelfDestructingMessage(event.getMessageChannel(), "Removed "+ event.getSubcommandName() + " property from any channel that has it!", 10);
 					} catch (Exception e) {
 						Util.sendErrorMessage(event.getMessageChannel(), e);
 						e.printStackTrace();
