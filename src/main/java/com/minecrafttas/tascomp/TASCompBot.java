@@ -40,9 +40,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	private static TASCompBot instance;
 	private final JDA jda;
 	private final Properties configuration;
-	private final Properties defaultCuildConfig = createDefaultGuildProperties();
-	private static final HashMap<Long, Properties> guildConfigs = new HashMap<>();
-	private static final File configDir = new File("configs/");
+	private final GuildConfigs guildConfigs;
 	private static final Logger LOGGER = LoggerFactory.getLogger("TAS Competition");
 	
 	public TASCompBot(Properties configuration) throws InterruptedException, LoginException {
@@ -52,6 +50,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				.setMemberCachePolicy(MemberCachePolicy.ALL)
                 .enableIntents(GatewayIntent.GUILD_MEMBERS)
                 .addEventListeners(this);
+		this.guildConfigs=new GuildConfigs(LOGGER);
 		this.jda = builder.build();
 		this.jda.awaitReady();
 	}
@@ -60,9 +59,6 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	public void run() {
 		/* Register the Commands */
 		LOGGER.info("Preparing bot...");
-		if(!configDir.exists()) {
-			configDir.mkdir();
-		}
 		
 		for (Guild guild : jda.getGuilds()) {
 			prepareGuild(guild);
@@ -80,17 +76,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	private void prepareGuild(Guild guild) {
 		LOGGER.info("Preparing guild {}...", guild.getName());
 		prepareCommands(guild);
-		Properties guildConfig = new Properties();
-		guildConfig.putAll(defaultCuildConfig);
-		
-		File configFile = new File(configDir, guild.getId()+".xml"); 
-		if(configFile.exists()) {
-			guildConfig = loadConfig(guild, configFile);
-		} else {
-			LOGGER.info("Creating default config...");
-			saveConfig(guild, guildConfig);
-		}
-		guildConfigs.put(guild.getIdLong(), guildConfig);
+		guildConfigs.prepareConfig(guild);
 		LOGGER.info("Done preparing guild {}!", guild.getName());
 	}
 
@@ -126,84 +112,6 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		LOGGER.info("Done preparing commands!");
 	}
 	
-	public static Properties loadConfig(Guild guild, File configFile) {
-		LOGGER.info("Loading config for guild {}...", guild.getName());
-		Properties guildConfig=new Properties();
-		try {
-			FileInputStream fis = new FileInputStream(configFile);
-			guildConfig.loadFromXML(fis);
-			fis.close();
-		} catch (InvalidPropertiesFormatException e) {
-			e.printStackTrace();
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return guildConfig;
-	}
-	
-	public static void saveConfig(Guild guild, Properties config) {
-		
-		LOGGER.info("Saving config for guild {}...", guild.getName());
-		File configFile = new File(configDir, guild.getId()+".xml"); 
-		
-		try {
-			FileOutputStream fos=new FileOutputStream(configFile);
-			config.storeToXML(fos, "Properties for guild: " + guild.getName(), "UTF-8");
-			fos.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-	
-	private enum ChannelConfig {
-		SUBMITCHANNEL("submitChannel", "0"),
-		ORGANIZERCHANNEL("organizerChannel", "0"),
-		PARTICIPATECHANNEL("participateChannel", "0");
-		
-		private String channelname;
-		private String defaultvalue;
-		
-		ChannelConfig(String channelname, String defaultValue) {
-			this.channelname=channelname;
-			this.defaultvalue=defaultValue;
-		}
-		
-		public static Map<String, String> getDefaultValues() {
-			Map<String, String> out = new HashMap<>();
-			for (ChannelConfig configthing : values()) {
-				out.put(configthing.channelname, configthing.defaultvalue);
-			}
-			return out;
-		}
-		
-		public static boolean contains(String nameIn) {
-			for (ChannelConfig configthing : values()) {
-				if(configthing.toString().equalsIgnoreCase(nameIn)) {
-					return true;
-				}
-			}
-			return false;
-		}
-		
-		public static String getChannelName(String nameIn) {
-			for (ChannelConfig configthing : values()) {
-				if(configthing.toString().equalsIgnoreCase(nameIn)) {
-					return configthing.channelname;
-				}
-			}
-			return "";
-		}
-	}
-
-	private Properties createDefaultGuildProperties() {
-		Properties prop = new Properties();
-		prop.put("isCompetitionRunning", "false");
-		prop.putAll(ChannelConfig.getDefaultValues());
-		return prop;
-	}
-	
 	@Override
 	public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
 		LOGGER.info("Running slash command {}", event.getCommandPath());
@@ -218,6 +126,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 						Util.sendSelfDestructingMessage(event.getMessageChannel(), "Added "+ event.getSubcommandName() + " property to this channel!", 10);
 					} catch (Exception e) {
 						Util.sendErrorMessage(event.getMessageChannel(), e);
+						e.printStackTrace();
 					}
 				} else if(commandPath.startsWith("setchannel/remove")) {
 					try {
@@ -225,6 +134,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 						Util.sendSelfDestructingMessage(event.getMessageChannel(), "Removed "+ event.getSubcommandName() + " property to this channel!", 10);
 					} catch (Exception e) {
 						Util.sendErrorMessage(event.getMessageChannel(), e);
+						e.printStackTrace();
 					}
 				}
 			}
@@ -232,28 +142,12 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		});
 	}
 	
-	private void addChannelToConfig(Guild guild, MessageChannel messageChannel, String subcommandName) throws IllegalArgumentException{
-		Properties property= guildConfigs.get(guild.getIdLong());
-		
-		if(ChannelConfig.contains(subcommandName)) {
-			property.put(ChannelConfig.getChannelName(subcommandName), messageChannel.getId());
-		} else {
-			throw new IllegalArgumentException(subcommandName+" doesn't exist");
-		}
-		
-		saveConfig(guild, property);
+	private void addChannelToConfig(Guild guild, MessageChannel messageChannel, String subcommandName) throws Exception{
+		guildConfigs.setValue(guild, subcommandName, messageChannel.getId());
 	}
 	
-	private void removeChannelFromConfig(Guild guild, String subcommandName) throws IllegalArgumentException {
-		Properties property = guildConfigs.get(guild.getIdLong());
-
-		if (ChannelConfig.contains(subcommandName)) {
-			property.remove(ChannelConfig.getChannelName(subcommandName));
-		} else {
-			throw new IllegalArgumentException(subcommandName + " doesn't exist");
-		}
-
-		saveConfig(guild, property);
+	private void removeChannelFromConfig(Guild guild, String subcommandName) throws Exception {
+		guildConfigs.removeValue(guild, subcommandName);
 	}
 
 	@Override
