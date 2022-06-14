@@ -7,6 +7,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.InvalidPropertiesFormatException;
+import java.util.Map;
 import java.util.Properties;
 
 import javax.security.auth.login.LoginException;
@@ -21,15 +22,14 @@ import com.vdurmont.emoji.EmojiManager;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.MessageReaction.ReactionEmote;
-import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import net.dv8tion.jda.api.interactions.commands.OptionType;
-import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
+import net.dv8tion.jda.api.interactions.commands.build.SubcommandGroupData;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
@@ -102,17 +102,22 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		CommandDataImpl setChannelCommand = new CommandDataImpl("setchannel", "Set's the current channel to the bots channel");
 		setChannelCommand.setDefaultEnabled(false);
 		
-		OptionData typeOption = new OptionData(OptionType.STRING, "type", "The type of information channel. Can be ORGANIZER, SUBMIT", true);
+		SubcommandGroupData addSubCommandGroup = new SubcommandGroupData("add", "Adds this channel to the config");
+		SubcommandGroupData removeSubCommandGroup = new SubcommandGroupData("remove", "Removes this channel from the config");
 		
-		SubcommandData addSubCommand = new SubcommandData("add", "Adds this channel to the config");
-		addSubCommand.addOptions(typeOption);
+		SubcommandData[] subcommands= {
+				new SubcommandData("organizerchannel", "The channel where dm's to the bot will get forwarded to"), 
+				new SubcommandData("submitchannel", "The channel where tas submissions will get forwarded to"),
+				new SubcommandData("participatechannel", "The channel where participants can get the participant role")
+				};
 		
-		SubcommandData removeSubCommand = new SubcommandData("remove", "Removes this channel from the config");
-		removeSubCommand.addOptions(typeOption);
+		addSubCommandGroup.addSubcommands(subcommands);
+		removeSubCommandGroup.addSubcommands(subcommands);
 		
 		SubcommandData listSubCommand = new SubcommandData("list", "Lists the current modifiers for this channel");
 		
-		setChannelCommand.addSubcommands(addSubCommand, removeSubCommand, listSubCommand);
+		setChannelCommand.addSubcommands(listSubCommand);
+		setChannelCommand.addSubcommandGroups(addSubCommandGroup, removeSubCommandGroup);
 		
 		// =========================
 		
@@ -139,8 +144,10 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	}
 	
 	public static void saveConfig(Guild guild, Properties config) {
+		
 		LOGGER.info("Saving config for guild {}...", guild.getName());
 		File configFile = new File(configDir, guild.getId()+".xml"); 
+		
 		try {
 			FileOutputStream fos=new FileOutputStream(configFile);
 			config.storeToXML(fos, "Properties for guild: " + guild.getName(), "UTF-8");
@@ -149,12 +156,51 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			e.printStackTrace();
 		}
 	}
+	
+	private enum ChannelConfig {
+		SUBMITCHANNEL("submitChannel", "0"),
+		ORGANIZERCHANNEL("organizerChannel", "0"),
+		PARTICIPATECHANNEL("participateChannel", "0");
+		
+		private String channelname;
+		private String defaultvalue;
+		
+		ChannelConfig(String channelname, String defaultValue) {
+			this.channelname=channelname;
+			this.defaultvalue=defaultValue;
+		}
+		
+		public static Map<String, String> getDefaultValues() {
+			Map<String, String> out = new HashMap<>();
+			for (ChannelConfig configthing : values()) {
+				out.put(configthing.channelname, configthing.defaultvalue);
+			}
+			return out;
+		}
+		
+		public static boolean contains(String nameIn) {
+			for (ChannelConfig configthing : values()) {
+				if(configthing.toString().equalsIgnoreCase(nameIn)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		
+		public static String getChannelName(String nameIn) {
+			for (ChannelConfig configthing : values()) {
+				if(configthing.toString().equalsIgnoreCase(nameIn)) {
+					return configthing.channelname;
+				}
+			}
+			return "";
+		}
+	}
 
 	private Properties createDefaultGuildProperties() {
 		Properties prop = new Properties();
 		prop.put("isCompetitionRunning", "false");
-		prop.put("submitChannel", "0");
-		prop.put("organiserChannel", "0");
+		prop.putAll(ChannelConfig.getDefaultValues());
 		return prop;
 	}
 	
@@ -162,11 +208,54 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
 		LOGGER.info("Running slash command {}", event.getCommandPath());
 		event.deferReply().queue(hook -> {
-			Util.sendDeletableMessage(event.getChannel(), "Nothing useful yet");
+			
+			String commandPath = event.getCommandPath();
+			
+			if(commandPath.startsWith("setchannel/")) {
+				if(commandPath.startsWith("setchannel/add")) {
+					try {
+						addChannelToConfig(event.getGuild(), event.getMessageChannel(), event.getSubcommandName());
+						Util.sendSelfDestructingMessage(event.getMessageChannel(), "Added "+ event.getSubcommandName() + " property to this channel!", 10);
+					} catch (Exception e) {
+						Util.sendErrorMessage(event.getMessageChannel(), e);
+					}
+				} else if(commandPath.startsWith("setchannel/remove")) {
+					try {
+						removeChannelFromConfig(event.getGuild(), event.getSubcommandName());
+						Util.sendSelfDestructingMessage(event.getMessageChannel(), "Removed "+ event.getSubcommandName() + " property to this channel!", 10);
+					} catch (Exception e) {
+						Util.sendErrorMessage(event.getMessageChannel(), e);
+					}
+				}
+			}
 			hook.deleteOriginal().queue();
 		});
 	}
 	
+	private void addChannelToConfig(Guild guild, MessageChannel messageChannel, String subcommandName) throws IllegalArgumentException{
+		Properties property= guildConfigs.get(guild.getIdLong());
+		
+		if(ChannelConfig.contains(subcommandName)) {
+			property.put(ChannelConfig.getChannelName(subcommandName), messageChannel.getId());
+		} else {
+			throw new IllegalArgumentException(subcommandName+" doesn't exist");
+		}
+		
+		saveConfig(guild, property);
+	}
+	
+	private void removeChannelFromConfig(Guild guild, String subcommandName) throws IllegalArgumentException {
+		Properties property = guildConfigs.get(guild.getIdLong());
+
+		if (ChannelConfig.contains(subcommandName)) {
+			property.remove(ChannelConfig.getChannelName(subcommandName));
+		} else {
+			throw new IllegalArgumentException(subcommandName + " doesn't exist");
+		}
+
+		saveConfig(guild, property);
+	}
+
 	@Override
 	public void onMessageReactionAdd(MessageReactionAddEvent event) {
 		if (!Util.isThisUserThisBot(event.getUser())) {
