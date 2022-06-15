@@ -26,7 +26,9 @@ public class GuildConfigs {
 		COMPETITION_RUNNING("isCompetitionRunning", "false"),
 		SUBMITCHANNEL("submitChannel", null),
 		ORGANIZERCHANNEL("organizerChannel", null), 
-		PARTICIPATECHANNEL("participateChannel", null);
+		PARTICIPATECHANNEL("participateChannel", null),
+		PARTICIPATEROLE("participateRole", null),
+		ORGANIZERROLE("organizerRole", null);
 
 		private String keyname;
 		private String defaultvalue;
