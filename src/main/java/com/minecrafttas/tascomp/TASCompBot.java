@@ -42,6 +42,7 @@ import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.internal.interactions.CommandDataImpl;
+import net.dv8tion.jda.internal.requests.restaction.MessageActionImpl;
 
 public class TASCompBot extends ListenerAdapter implements Runnable {
 
@@ -150,10 +151,11 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				new SubcommandData("organizerrole", "The role for the organizers")
 		};
 		
-		SubcommandData[] setRoleSubcommands=Arrays.copyOf(setRoleSubcommandsNoOption, setRoleSubcommandsNoOption.length);
-		
-		for (SubcommandData subcommandData : setRoleSubcommands) {
-			subcommandData.addOptions(roleOption);
+		SubcommandData[] setRoleSubcommands=new SubcommandData[setRoleSubcommandsNoOption.length];
+		int i=0;
+		for (SubcommandData subcommandData : setRoleSubcommandsNoOption) {
+			setRoleSubcommands[i]=new SubcommandData(subcommandData.getName(), subcommandData.getDescription()).addOptions(roleOption);
+			i++;
 		}
 		
 		addSubCommandGroupRole.addSubcommands(setRoleSubcommands);
@@ -162,7 +164,15 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		setRoleCommand.addSubcommands(listSubCommand);
 		setRoleCommand.addSubcommandGroups(addSubCommandGroupRole, removeSubCommandGroupRole);
 		
-		updater.addCommands(tascompCommand, setChannelCommand, setRoleCommand);
+		//=========================== Preview
+		CommandDataImpl previewCommand = new CommandDataImpl("preview", "Previews the embed from a markdown message");
+		previewCommand.setDefaultEnabled(false);
+		
+		OptionData messageIDOption = new OptionData(OptionType.STRING, "messageid", "The message id to preview");
+		messageIDOption.setRequired(true);
+		previewCommand.addOptions(messageIDOption);
+		
+		updater.addCommands(tascompCommand, setChannelCommand, setRoleCommand, previewCommand);
 		updater.queue();
 		LOGGER.info("Done preparing commands!");
 	}
@@ -236,6 +246,18 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 
 						Util.sendDeletableMessage(event.getChannel(), new MessageBuilder(embed).build());
 					}
+				}
+				if (commandPath.equals("preview")) {
+					event.getMessageChannel().retrieveMessageById(event.getOption("messageid").getAsString()).submit().whenComplete((msg, throwable)->{
+						try {
+							EmbedBuilder embed=MD2Embed.parseEmbed(msg.getContentRaw(), color);
+							MessageBuilder newmsg=new MessageBuilder(embed);
+							Util.sendDeletableMessage(event.getChannel(), newmsg.build());
+						} catch (Exception e) {
+							Util.sendErrorMessage(event.getChannel(), e);
+							e.printStackTrace();
+						}
+					});
 				}
 			// Error handling
 			} catch (Exception e) {
