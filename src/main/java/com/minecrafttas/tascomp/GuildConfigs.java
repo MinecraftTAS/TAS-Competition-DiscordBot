@@ -28,7 +28,8 @@ public class GuildConfigs {
 		ORGANIZERCHANNEL("organizerChannel", null), 
 		PARTICIPATECHANNEL("participateChannel", null),
 		PARTICIPATEROLE("participateRole", null),
-		ORGANIZERROLE("organizerRole", null);
+		ORGANIZERROLE("organizerRole", null),
+		RULEMSG("ruleMessage", null);
 
 		private String keyname;
 		private String defaultvalue;

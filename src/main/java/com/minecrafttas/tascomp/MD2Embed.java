@@ -72,7 +72,7 @@ public class MD2Embed {
 		return null;
 	}
 	
-	private static String matchAndGet(String pattern, String match, int get) {
+	public static String matchAndGet(String pattern, String match, int get) {
 		Pattern pat=Pattern.compile(pattern);
 		Matcher mat=pat.matcher(match);
 		if(mat.find()&&mat.groupCount()>0) {

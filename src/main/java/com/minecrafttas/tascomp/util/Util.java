@@ -3,6 +3,7 @@ package com.minecrafttas.tascomp.util;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import com.minecrafttas.tascomp.TASCompBot;
 import com.vdurmont.emoji.EmojiManager;
 
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -108,6 +109,10 @@ public class Util {
 		return user.getJDA().getSelfUser().getIdLong() == user.getIdLong();
 	}
 	
+	public static boolean isThisUserThisBot(long user) {
+		return TASCompBot.getBot().getJDA().getSelfUser().getIdLong() == user;
+	}
+	
 	/**
 	 * @param member The member to check
 	 * @return If the member has MESSAGE_MANAGE permissions
@@ -170,8 +175,34 @@ public class Util {
 		sendDeletableMessage(channel, msg);
 	}
 
-	public static Message constructEmbedMessage(String title, String fieldtext, String text, int color) {
-		return new MessageBuilder(new EmbedBuilder().setTitle(title).addField(fieldtext, text, false).setColor(color)).build();
+	public static Message constructEmbedMessage(String title, String description, int color) {
+		return new MessageBuilder(new EmbedBuilder().setTitle(title).setDescription(description).setColor(color)).build();
+	}
+
+	
+	
+	public static void sendDeletableDirectMessage(User user, Message message) {
+		user.openPrivateChannel().queue(channel -> {
+			sendDeletableMessage(channel, message);
+		});
+	}
+	
+	public static void sendDeletableDirectMessage(User user, String message) {
+		user.openPrivateChannel().queue(channel -> {
+			sendDeletableMessage(channel, message);
+		});
+	}
+	
+	public static void sendSelfDestructingDirectMessage(User user, Message message, int time) {
+		user.openPrivateChannel().queue(channel -> {
+			sendSelfDestructingMessage(channel, message, time);
+		});
+	}
+
+	public static void sendSelfDestructingDirectMessage(User user, String message, int time) {
+		user.openPrivateChannel().queue(channel -> {
+			sendSelfDestructingMessage(channel, message, time);
+		});
 	}
 
 }

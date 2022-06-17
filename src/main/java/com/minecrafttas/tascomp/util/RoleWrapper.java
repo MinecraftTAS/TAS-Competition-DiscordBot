@@ -4,6 +4,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Role;
 
 /**
  * Simple wrapper class around a role
@@ -69,5 +71,14 @@ public class RoleWrapper {
 			return matcher.group(1);
 		}
 		return roleIn;
+	}
+
+	public static boolean doesMemberHaveRole(Member member, String roleId) {
+		for (Role role : member.getRoles()) {
+			if (role.getId().equals(roleId)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

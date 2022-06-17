@@ -1,14 +1,5 @@
 package com.minecrafttas.tascomp;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.InvalidPropertiesFormatException;
-import java.util.Map;
 import java.util.Properties;
 
 import javax.security.auth.login.LoginException;
@@ -18,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import com.minecrafttas.tascomp.GuildConfigs.ConfigValues;
 import com.minecrafttas.tascomp.util.EmoteWrapper;
+import com.minecrafttas.tascomp.util.RoleWrapper;
 import com.minecrafttas.tascomp.util.Util;
 import com.vdurmont.emoji.EmojiManager;
 
@@ -25,10 +17,14 @@ import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.MessageBuilder;
+import net.dv8tion.jda.api.entities.ChannelType;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.MessageReaction.ReactionEmote;
 import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
@@ -42,7 +38,6 @@ import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.internal.interactions.CommandDataImpl;
-import net.dv8tion.jda.internal.requests.restaction.MessageActionImpl;
 
 public class TASCompBot extends ListenerAdapter implements Runnable {
 
@@ -50,8 +45,9 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	private final JDA jda;
 	private final Properties configuration;
 	private final GuildConfigs guildConfigs;
+	private final ParticipateOffer offer;
 	private static final Logger LOGGER = LoggerFactory.getLogger("TAS Competition");
-	private final int color=0x0a8505;
+	public static final int color=0x0a8505;
 	
 	public TASCompBot(Properties configuration) throws InterruptedException, LoginException {
 		instance=this;
@@ -61,6 +57,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
                 .enableIntents(GatewayIntent.GUILD_MEMBERS)
                 .addEventListeners(this);
 		this.guildConfigs=new GuildConfigs(LOGGER);
+		this.offer= new ParticipateOffer(guildConfigs);
 		this.jda = builder.build();
 		this.jda.awaitReady();
 	}
@@ -172,11 +169,28 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		messageIDOption.setRequired(true);
 		previewCommand.addOptions(messageIDOption);
 		
-		updater.addCommands(tascompCommand, setChannelCommand, setRoleCommand, previewCommand);
+		//=========================== SetRule
+		CommandDataImpl setRuleCommand = new CommandDataImpl("setrulemessage", "Set's the rule message sent after typing /participate");
+		setRuleCommand.setDefaultEnabled(false);
+		
+		setRuleCommand.addOptions(messageIDOption);
+		
+		//=========================== Participate
+		CommandDataImpl participateCommand = new CommandDataImpl("participate", "Participate in the Minecraft TAS Competition!");
+		participateCommand.setDefaultEnabled(true);
+		
+		updater.addCommands(tascompCommand, setChannelCommand, setRoleCommand, previewCommand, setRuleCommand, participateCommand);
 		updater.queue();
 		LOGGER.info("Done preparing commands!");
 	}
 	
+	private boolean shouldExecuteParticipate(Guild guild) {
+		return guildConfigs.getValue(guild, ConfigValues.COMPETITION_RUNNING).equals("true") && 
+				guildConfigs.hasValue(guild, ConfigValues.PARTICIPATECHANNEL) && 
+				guildConfigs.hasValue(guild, ConfigValues.PARTICIPATEROLE) && 
+				guildConfigs.hasValue(guild, ConfigValues.RULEMSG);
+	}
+
 	@Override
 	public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
 		LOGGER.info("{}: Running slash command {}",event.getUser().getAsTag(), event.getCommandPath());
@@ -188,6 +202,8 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				if(commandPath.startsWith("tascompetition/")) {
 					if (event.getSubcommandName().equals("start")) {
 						guildConfigs.setValue(event.getGuild(), ConfigValues.COMPETITION_RUNNING, "true");
+						if(shouldExecuteParticipate(event.getGuild())) {
+						}
 						Util.sendSelfDestructingMessage(event.getMessageChannel(),
 								"Starting the TAS Competition-Bot. `/participate` will be enabled and listening to DM's from participants", 20);
 					} else if (event.getSubcommandName().equals("stop")) {
@@ -247,6 +263,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 						Util.sendDeletableMessage(event.getChannel(), new MessageBuilder(embed).build());
 					}
 				}
+				// ================== Preview Command
 				if (commandPath.equals("preview")) {
 					event.getMessageChannel().retrieveMessageById(event.getOption("messageid").getAsString()).submit().whenComplete((msg, throwable)->{
 						try {
@@ -258,6 +275,37 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 							e.printStackTrace();
 						}
 					});
+				}
+				// ================== SetRule Command
+				if (commandPath.equals("setrulemessage")) {
+					event.getMessageChannel().retrieveMessageById(event.getOption("messageid").getAsString()).submit().whenComplete((msg, throwable)->{
+						try {
+							guildConfigs.setValue(event.getGuild(), ConfigValues.RULEMSG, msg.getContentRaw());
+							MessageBuilder builder = new MessageBuilder();
+							builder.setContent("Set the rule message to:");
+							builder.setEmbeds(MD2Embed.parseEmbed(msg.getContentRaw(), color).build());
+							Util.sendSelfDestructingMessage(event.getMessageChannel(), builder.build(), 20);
+						} catch (Exception e) {
+							Util.sendErrorMessage(event.getChannel(), e);
+							e.printStackTrace();
+						}
+					});
+				}
+				if (commandPath.equals("participate")) {
+					if(shouldExecuteParticipate(event.getGuild())) {
+						if(offer!=null) {
+							if(!RoleWrapper.doesMemberHaveRole(event.getMember(), guildConfigs.getValue(event.getGuild(), ConfigValues.PARTICIPATEROLE))) {
+								offer.startOffer(event.getGuild(), event.getUser());
+							}else {
+								Message msg = new MessageBuilder("<@"+event.getUser().getId()+"> You are already participating!").build();
+								Util.sendSelfDestructingMessage(event.getChannel(), msg, 10);
+							}
+						} else {
+							Util.sendErrorMessage(event.getChannel(), new NullPointerException("This state shouldn't be possible, meaning the bot author made a bug somewhere..."));
+						}
+					} else {
+						Util.sendSelfDestructingMessage(event.getMessageChannel(), "You can not participate currently!", 10);
+					}
 				}
 			// Error handling
 			} catch (Exception e) {
@@ -283,7 +331,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	
 	@Override
 	public void onMessageReactionAdd(MessageReactionAddEvent event) {
-		if (!Util.isThisUserThisBot(event.getUser())) {
+		if (!Util.isThisUserThisBot(event.getUserIdLong())) {
 
 			ReactionEmote reactionEmote = event.getReactionEmote();
 
@@ -292,7 +340,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				event.retrieveMessage().queue(msg -> {
 					if (Util.isThisUserThisBot(msg.getAuthor())) {
 
-						if (Util.hasBotReactedWith(msg, EmojiManager.getForAlias(":x:").getUnicode())) {
+						if (Util.hasBotReactedWith(msg, EmojiManager.getForAlias(":x:").getUnicode()) || event.getChannelType() == ChannelType.PRIVATE) {
 							Util.deleteMessage(msg);
 						}
 					}
@@ -311,6 +359,32 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	
 	@Override
 	public void onMessageReceived(MessageReceivedEvent event) {
-//		System.out.println(event.getMessage().getContentRaw());
+		if(event.getChannelType()==ChannelType.PRIVATE) {
+			event.getChannel().retrieveMessageById(event.getMessageId()).queue(message -> {
+				if (!Util.isThisUserThisBot(event.getAuthor())) {
+					String msg = message.getContentRaw();
+					String code = MD2Embed.matchAndGet("^!accept (\\w{5})", msg, 1);
+					if (code != null) {
+						User user = message.getAuthor();
+						Guild guild = offer.checkCode(user, code);
+						if (guild != null) {
+							Util.sendSelfDestructingDirectMessage(user, "You are now participating!", 20);
+							Role participationRole = guild
+									.getRoleById(guildConfigs.getValue(guild, ConfigValues.PARTICIPATEROLE));
+	
+							guild.addRoleToMember(user, participationRole).queue();
+	
+							MessageChannel channel = (MessageChannel) guild
+									.getGuildChannelById(guildConfigs.getValue(guild, ConfigValues.PARTICIPATECHANNEL));
+	
+							Message guildMessage = Util.constructEmbedMessage(user.getName() + " is now participating!",
+									"Type `/participate` if you also want to join the TAS Competition!", color);
+	
+							Util.sendMessage(channel, guildMessage);
+						}
+					}
+				}
+			});
+		}
 	}
 }
