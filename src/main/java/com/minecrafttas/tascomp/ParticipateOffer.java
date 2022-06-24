@@ -1,7 +1,6 @@
 package com.minecrafttas.tascomp;
 
 import java.util.HashMap;
-import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
@@ -45,6 +44,7 @@ public class ParticipateOffer {
 		String code = generateRandomText();
 		System.out.println(code);
 		EmbedBuilder embed=MD2Embed.parseEmbed(configs.getValue(guild, ConfigValues.RULEMSG), TASCompBot.color);
+		embed.addField("Accepting:", "To accept, write `!accept <code in the image>`", false);
 		embed.setImage("attachment://captcha.png");
 		Message msg = new MessageBuilder(embed).build();
 		user.openPrivateChannel().queue(channel ->{

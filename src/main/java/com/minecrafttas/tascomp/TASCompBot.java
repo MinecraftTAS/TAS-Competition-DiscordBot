@@ -1,6 +1,9 @@
 package com.minecrafttas.tascomp;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
+import java.util.regex.Pattern;
 
 import javax.security.auth.login.LoginException;
 
@@ -11,6 +14,7 @@ import com.minecrafttas.tascomp.GuildConfigs.ConfigValues;
 import com.minecrafttas.tascomp.util.EmoteWrapper;
 import com.minecrafttas.tascomp.util.RoleWrapper;
 import com.minecrafttas.tascomp.util.Util;
+import com.minecrafttas.tascomp.util.UtilTASCompBot;
 import com.vdurmont.emoji.EmojiManager;
 
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -19,7 +23,6 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.ChannelType;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.MessageReaction.ReactionEmote;
@@ -82,6 +85,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	
 	private void prepareGuild(Guild guild) {
 		LOGGER.info("Preparing guild {}...", guild.getName());
+		guild.loadMembers();
 		prepareCommands(guild);
 		guildConfigs.prepareConfig(guild);
 		LOGGER.info("Done preparing guild {}!", guild.getName());
@@ -193,7 +197,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 
 	@Override
 	public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
-		LOGGER.info("{}: Running slash command {}",event.getUser().getAsTag(), event.getCommandPath());
+		LOGGER.info("{}: Running slash command {} in {}", event.getUser().getAsTag(), event.getCommandPath(), event.getGuild().getName());
 		event.deferReply().queue(hook -> {
 			try {
 				String commandPath = event.getCommandPath();
@@ -202,12 +206,13 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				if(commandPath.startsWith("tascompetition/")) {
 					if (event.getSubcommandName().equals("start")) {
 						guildConfigs.setValue(event.getGuild(), ConfigValues.COMPETITION_RUNNING, "true");
-						if(shouldExecuteParticipate(event.getGuild())) {
-						}
+
 						Util.sendSelfDestructingMessage(event.getMessageChannel(),
 								"Starting the TAS Competition-Bot. `/participate` will be enabled and listening to DM's from participants", 20);
+						
 					} else if (event.getSubcommandName().equals("stop")) {
 						guildConfigs.setValue(event.getGuild(), ConfigValues.COMPETITION_RUNNING, "false");
+						
 						Util.sendSelfDestructingMessage(event.getMessageChannel(),
 								"Stopping the TAS Competition-Bot. Disabeling `/participate` and stop listening to DM's from participants", 20);
 					}
@@ -363,12 +368,17 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			event.getChannel().retrieveMessageById(event.getMessageId()).queue(message -> {
 				if (!Util.isThisUserThisBot(event.getAuthor())) {
 					String msg = message.getContentRaw();
+					
+					// Accept
 					String code = MD2Embed.matchAndGet("^!accept (\\w{5})", msg, 1);
 					if (code != null) {
 						User user = message.getAuthor();
 						Guild guild = offer.checkCode(user, code);
 						if (guild != null) {
 							Util.sendSelfDestructingDirectMessage(user, "You are now participating!", 20);
+							sendPrivateCommandHelp(user);
+							
+							
 							Role participationRole = guild
 									.getRoleById(guildConfigs.getValue(guild, ConfigValues.PARTICIPATEROLE));
 	
@@ -383,8 +393,32 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 							Util.sendMessage(channel, guildMessage);
 						}
 					}
+					if (Pattern.matches("^!debug", msg)) {
+						List<String> guildList= new ArrayList<>();
+						UtilTASCompBot.getActiveParticipationGuilds(message.getAuthor()).forEach(guild -> {
+							guildList.add(guild.getName());
+						});
+						Util.sendDeletableDirectMessage(message.getAuthor(), guildList.toString());
+					}
 				}
 			});
 		}
+	}
+
+	private void sendPrivateCommandHelp(User user) {
+		EmbedBuilder builder = new EmbedBuilder();
+		builder.setTitle("Help/Commands");
+		builder.setDescription("When DMing this bot, your message will get forwarded to the organizers. They can also answer you through the bot.\n"
+				+ "If a message was forwarded correctly, the bot will react with a checkmark.\n"
+				+ "There are also commands you can use in DM's:");
+		builder.addField("!submit <link to submission and/or meme run>", "Adds a submission. To overwrite the last submission, just use `!submit` again.\n\n"
+				+ "*Example:* `/submit Submission: https://www.youtube.com/watch?v=3Tk6WaigTQk MemeRun: https://www.youtube.com/watch?v=dQw4w9WgXcQ`",false);
+		builder.addField("!help", "Get this help again", false);
+		builder.setColor(color);
+		Util.sendDeletableDirectMessage(user, new MessageBuilder(builder).build());
+	}
+
+	public GuildConfigs getGuildConfigs() {
+		return guildConfigs;
 	}
 }
