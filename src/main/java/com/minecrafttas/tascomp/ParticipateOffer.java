@@ -17,6 +17,7 @@ import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 
 public class ParticipateOffer {
 	private static Timer timer= new Timer();
@@ -48,7 +49,7 @@ public class ParticipateOffer {
 		embed.setImage("attachment://captcha.png");
 		Message msg = new MessageBuilder(embed).build();
 		user.openPrivateChannel().queue(channel ->{
-			channel.sendMessage(msg).addFile(WarpedImage.makeCaptcha(code), "captcha.png").queue(msg2-> msg2.addReaction(EmojiManager.getForAlias(":x:").getUnicode()).queue());
+			channel.sendMessage(msg).addFile(WarpedImage.makeCaptcha(code), "captcha.png").queue(msg2-> msg2.addReaction(Emoji.fromUnicode(EmojiManager.getForAlias(":x:").getUnicode())).queue());
 		});
 		
 		offerList.put(user.getIdLong(), new Offer(guild, user, code));

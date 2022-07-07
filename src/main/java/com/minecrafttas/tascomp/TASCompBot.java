@@ -11,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.minecrafttas.tascomp.GuildConfigs.ConfigValues;
-import com.minecrafttas.tascomp.util.EmoteWrapper;
 import com.minecrafttas.tascomp.util.RoleWrapper;
 import com.minecrafttas.tascomp.util.Util;
 import com.minecrafttas.tascomp.util.UtilTASCompBot;
@@ -25,14 +24,15 @@ import net.dv8tion.jda.api.entities.ChannelType;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageChannel;
-import net.dv8tion.jda.api.entities.MessageReaction.ReactionEmote;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
@@ -102,7 +102,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		// =========================Set Channel
 		// /setchannel
 		CommandDataImpl setChannelCommand = new CommandDataImpl("setchannel", "Set's the current channel to the bots channel");
-		setChannelCommand.setDefaultEnabled(false);
+		setChannelCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
 		// /setchannel add
 		SubcommandGroupData addSubCommandGroupChannel = new SubcommandGroupData("add", "Adds the channel to the config");
@@ -129,7 +129,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		
 		// =========================TAS Competition Start/Stop
 		CommandDataImpl tascompCommand = new CommandDataImpl("tascompetition", "Starts/Stops the TAS Competition");
-		tascompCommand.setDefaultEnabled(false);
+		tascompCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
 		SubcommandData[] tascompSubcommands= {
 				new SubcommandData("start", "Starts a TAS Competition in this guild"),
@@ -139,7 +139,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		
 		// =========================Set Role
 		CommandDataImpl setRoleCommand = new CommandDataImpl("setrole", "Set's roles for this guild");
-		setRoleCommand.setDefaultEnabled(false);
+		setRoleCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
 		SubcommandGroupData addSubCommandGroupRole = new SubcommandGroupData("add", "Adds the role to the config");
 		SubcommandGroupData removeSubCommandGroupRole = new SubcommandGroupData("remove", "Removes the role from the config");
@@ -167,7 +167,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		
 		//=========================== Preview
 		CommandDataImpl previewCommand = new CommandDataImpl("preview", "Previews the embed from a markdown message");
-		previewCommand.setDefaultEnabled(false);
+		previewCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
 		OptionData messageIDOption = new OptionData(OptionType.STRING, "messageid", "The message id to preview");
 		messageIDOption.setRequired(true);
@@ -175,13 +175,13 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		
 		//=========================== SetRule
 		CommandDataImpl setRuleCommand = new CommandDataImpl("setrulemessage", "Set's the rule message sent after typing /participate");
-		setRuleCommand.setDefaultEnabled(false);
+		setRuleCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
 		setRuleCommand.addOptions(messageIDOption);
 		
 		//=========================== Participate
 		CommandDataImpl participateCommand = new CommandDataImpl("participate", "Participate in the Minecraft TAS Competition!");
-		participateCommand.setDefaultEnabled(true);
+		participateCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
 		updater.addCommands(tascompCommand, setChannelCommand, setRoleCommand, previewCommand, setRuleCommand, participateCommand);
 		updater.queue();
@@ -338,9 +338,9 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	public void onMessageReactionAdd(MessageReactionAddEvent event) {
 		if (!Util.isThisUserThisBot(event.getUserIdLong())) {
 
-			ReactionEmote reactionEmote = event.getReactionEmote();
+			Emoji reactionEmote = event.getEmoji();
 
-			if (EmoteWrapper.getReactionEmoteId(reactionEmote).equals(EmojiManager.getForAlias(":x:").getUnicode())) {
+			if (reactionEmote.getFormatted().equals(EmojiManager.getForAlias(":x:").getUnicode())) {
 
 				event.retrieveMessage().queue(msg -> {
 					if (Util.isThisUserThisBot(msg.getAuthor())) {
