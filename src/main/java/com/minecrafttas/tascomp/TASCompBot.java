@@ -16,6 +16,7 @@ import com.minecrafttas.tascomp.util.Util;
 import com.minecrafttas.tascomp.util.UtilTASCompBot;
 import com.vdurmont.emoji.EmojiManager;
 
+import ch.qos.logback.core.util.ContentTypeUtil;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
@@ -24,6 +25,8 @@ import net.dv8tion.jda.api.entities.ChannelType;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageChannel;
+import net.dv8tion.jda.api.entities.MessageReference;
+import net.dv8tion.jda.api.entities.MessageType;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
@@ -351,6 +354,63 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 					}
 				});
 			}
+			if(event.getChannelType()==ChannelType.PRIVATE) {
+				event.retrieveMessage().queue(msg -> {
+					if(Util.hasBotReactedWith(msg, reactionEmote.getFormatted())) {
+						
+						List<Guild> participationGuilds = UtilTASCompBot
+								.getActiveParticipationGuilds(msg.getAuthor());
+						
+						Guild participationGuild = null;
+						
+						if (participationGuilds.size() == 1) {
+							
+							participationGuild=participationGuilds.get(0);
+							
+						} else if (participationGuilds.size() > 1 && participationGuilds.size() < 10) {
+							int channelNumber = 0;
+							if(EmojiManager.containsEmoji(reactionEmote.getFormatted())) {
+								
+								String emoji=reactionEmote.getFormatted();
+								
+								channelNumber=EmojiManager.getForAlias("one").getUnicode().equals(emoji)?1:channelNumber;
+								channelNumber=EmojiManager.getForAlias("two").getUnicode().equals(emoji)?2:channelNumber;
+								channelNumber=EmojiManager.getForAlias("three").getUnicode().equals(emoji)?3:channelNumber;
+								channelNumber=EmojiManager.getForAlias("four").getUnicode().equals(emoji)?4:channelNumber;
+								channelNumber=EmojiManager.getForAlias("five").getUnicode().equals(emoji)?5:channelNumber;
+								channelNumber=EmojiManager.getForAlias("six").getUnicode().equals(emoji)?6:channelNumber;
+								channelNumber=EmojiManager.getForAlias("seven").getUnicode().equals(emoji)?7:channelNumber;
+								channelNumber=EmojiManager.getForAlias("eight").getUnicode().equals(emoji)?8:channelNumber;
+								channelNumber=EmojiManager.getForAlias("nine").getUnicode().equals(emoji)?9:channelNumber;
+							}
+							participationGuild=participationGuilds.get(channelNumber-1);
+						}
+						
+						if(!guildConfigs.hasValue(participationGuild, ConfigValues.ORGANIZERCHANNEL)) {
+							Util.sendDeletableDirectMessage(event.getUser(), "The destination channel for the "+participationGuild.getName()+" was not set by their admins. You may alert them of this mistake...");
+							return;
+						}
+						MessageChannel channel = (MessageChannel) participationGuild
+								.getGuildChannelById(guildConfigs.getValue(participationGuild, ConfigValues.ORGANIZERCHANNEL));
+						
+						EmbedBuilder builder = new EmbedBuilder().setAuthor(msg.getAuthor().getAsTag(), null, msg.getAuthor().getEffectiveAvatarUrl());
+						builder.setDescription(msg.getContentRaw());
+						
+						msg.getAttachments().forEach(attachment -> {
+							if(attachment.getContentType().contains("image/")) {
+								builder.setImage(attachment.getUrl());
+							} else
+								builder.addField("", attachment.getUrl(), false);
+						});
+						
+						MessageBuilder mbuilder=new MessageBuilder(builder);
+						
+						Util.sendMessage(channel, mbuilder.build());
+						
+						msg.removeReaction(reactionEmote).queue();
+					}
+				});
+			}
 		}
 	}
 	
@@ -393,6 +453,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 							Util.sendMessage(channel, guildMessage);
 						}
 					}
+					else 
 					if (Pattern.matches("^!debug", msg)) {
 						List<String> guildList= new ArrayList<>();
 						UtilTASCompBot.getActiveParticipationGuilds(message.getAuthor()).forEach(guild -> {
@@ -400,10 +461,73 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 						});
 						Util.sendDeletableDirectMessage(message.getAuthor(), guildList.toString());
 					}
+					else {
+						List<Guild> participationGuilds = UtilTASCompBot
+								.getActiveParticipationGuilds(message.getAuthor());
+						String checkmark = EmojiManager.getForAlias("white_check_mark").getUnicode();
+						if (participationGuilds.size() == 1) {
+							
+							message.addReaction(Emoji.fromUnicode(checkmark)).queue();
+							
+						} else if (participationGuilds.size() > 1 && participationGuilds.size() < 10) {
+							for (int i = 1; i <= participationGuilds.size(); i++) {
+								String emotealias = "";
+								switch (i) {
+								case 1:
+									emotealias = "one";
+									break;
+								case 2:
+									emotealias = "two";
+									break;
+								case 3:
+									emotealias = "three";
+									break;
+								case 4:
+									emotealias = "four";
+									break;
+								case 5:
+									emotealias = "five";
+									break;
+								case 6:
+									emotealias = "six";
+									break;
+								case 7:
+									emotealias = "seven";
+									break;
+								case 8:
+									emotealias = "eight";
+									break;
+								case 9:
+									emotealias = "nine";
+									break;
+								}
+								String emote = EmojiManager.getForAlias(emotealias).getUnicode();
+								message.addReaction(Emoji.fromUnicode(emote)).queue();
+							}
+						}
+					}
+				}
+			});
+		}
+		else if (event.getChannel().getIdLong() == Long.parseLong(guildConfigs.getValue(event.getGuild(), ConfigValues.ORGANIZERCHANNEL))) {
+			
+			event.getChannel().retrieveMessageById(event.getMessageId()).queue(message -> {
+				if(message.getType()==MessageType.INLINE_REPLY) {
+					MessageReference replymessage=message.getMessageReference();
+					if(replymessage.getMessage().getEmbeds().size()!=0) {
+						String name=replymessage.getMessage().getEmbeds().get(0).getAuthor().getName();
+						User replyUser=event.getGuild().getMemberByTag(name).getUser();
+						MessageBuilder newMessage=new MessageBuilder(message);
+						message.getAttachments().forEach(attachment -> {
+							newMessage.append(attachment.getUrl());
+						});
+						Util.sendDeletableDirectMessage(replyUser, newMessage.build());
+					}
 				}
 			});
 		}
 	}
+	
 
 	private void sendPrivateCommandHelp(User user) {
 		EmbedBuilder builder = new EmbedBuilder();
