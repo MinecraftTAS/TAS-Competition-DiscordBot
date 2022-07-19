@@ -51,6 +51,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	private final JDA jda;
 	private final Properties configuration;
 	private final GuildConfigs guildConfigs;
+	private final SubmissionHandler submissionHandler;
 	private final ParticipateOffer offer;
 	private static final Logger LOGGER = LoggerFactory.getLogger("TAS Competition");
 	public static final int color=0x0a8505;
@@ -63,6 +64,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
                 .enableIntents(GatewayIntent.GUILD_MEMBERS)
                 .addEventListeners(this);
 		this.guildConfigs=new GuildConfigs(LOGGER);
+		this.submissionHandler=new SubmissionHandler(LOGGER);
 		this.offer= new ParticipateOffer(guildConfigs);
 		this.jda = builder.build();
 		this.jda.awaitReady();
@@ -91,6 +93,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		guild.loadMembers();
 		prepareCommands(guild);
 		guildConfigs.prepareConfig(guild);
+		
 		LOGGER.info("Done preparing guild {}!", guild.getName());
 	}
 
@@ -354,6 +357,8 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 					}
 				});
 			}
+			
+			// DMBridge Send
 			if(event.getChannelType()==ChannelType.PRIVATE) {
 				event.retrieveMessage().queue(msg -> {
 					if(Util.hasBotReactedWith(msg, reactionEmote.getFormatted())) {
@@ -373,15 +378,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 								
 								String emoji=reactionEmote.getFormatted();
 								
-								channelNumber=EmojiManager.getForAlias("one").getUnicode().equals(emoji)?1:channelNumber;
-								channelNumber=EmojiManager.getForAlias("two").getUnicode().equals(emoji)?2:channelNumber;
-								channelNumber=EmojiManager.getForAlias("three").getUnicode().equals(emoji)?3:channelNumber;
-								channelNumber=EmojiManager.getForAlias("four").getUnicode().equals(emoji)?4:channelNumber;
-								channelNumber=EmojiManager.getForAlias("five").getUnicode().equals(emoji)?5:channelNumber;
-								channelNumber=EmojiManager.getForAlias("six").getUnicode().equals(emoji)?6:channelNumber;
-								channelNumber=EmojiManager.getForAlias("seven").getUnicode().equals(emoji)?7:channelNumber;
-								channelNumber=EmojiManager.getForAlias("eight").getUnicode().equals(emoji)?8:channelNumber;
-								channelNumber=EmojiManager.getForAlias("nine").getUnicode().equals(emoji)?9:channelNumber;
+								channelNumber = UtilTASCompBot.unicodeToInt(emoji);
 							}
 							participationGuild=participationGuilds.get(channelNumber-1);
 						}
@@ -471,37 +468,9 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 							
 						} else if (participationGuilds.size() > 1 && participationGuilds.size() < 10) {
 							for (int i = 1; i <= participationGuilds.size(); i++) {
-								String emotealias = "";
-								switch (i) {
-								case 1:
-									emotealias = "one";
-									break;
-								case 2:
-									emotealias = "two";
-									break;
-								case 3:
-									emotealias = "three";
-									break;
-								case 4:
-									emotealias = "four";
-									break;
-								case 5:
-									emotealias = "five";
-									break;
-								case 6:
-									emotealias = "six";
-									break;
-								case 7:
-									emotealias = "seven";
-									break;
-								case 8:
-									emotealias = "eight";
-									break;
-								case 9:
-									emotealias = "nine";
-									break;
-								}
-								String emote = EmojiManager.getForAlias(emotealias).getUnicode();
+
+								String emote = UtilTASCompBot.intToUnicode(i);
+								
 								message.addReaction(Emoji.fromUnicode(emote)).queue();
 							}
 						}
