@@ -15,6 +15,7 @@ import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.MessageReaction;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.Message.Attachment;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 
 public class Util {
@@ -212,4 +213,51 @@ public class Util {
 		});
 	}
 
+	public static Message constructMessageWithAuthor(Message msg) {
+		return constructMessageWithAuthor(msg, "", msg.getContentRaw(), 0xFFFFFF);
+	}
+	
+	public static Message constructMessageWithAuthor(Message msg, String title, String raw, int color) {
+		
+		MessageBuilder mbuilder=new MessageBuilder(constructEmbedWithAuthor(msg, title, raw, color));
+		
+		return mbuilder.build();
+	}
+	
+	public static Message constructMessageWithAuthor(User author, String title, String raw, int color) {
+		MessageBuilder mbuilder=new MessageBuilder(constructEmbedWithAuthor(author, title, raw, color));
+		return mbuilder.build();
+	}
+
+	public static EmbedBuilder constructEmbedWithAuthor(Message msg, String title, String raw, int color) {
+		EmbedBuilder builder = new EmbedBuilder().setAuthor(msg.getAuthor().getAsTag(), null, msg.getAuthor().getEffectiveAvatarUrl());
+		builder.setDescription(raw);
+		
+		if(!title.isEmpty()) {
+			builder.setTitle(title);
+		}
+		builder.setColor(color);
+		
+		boolean flag=false;
+		for (Attachment attachment : msg.getAttachments()) {
+			String contentType=attachment.getContentType();
+			
+			if(contentType.contains("image/") && !flag) {
+				builder.setImage(attachment.getUrl());
+				flag=true;
+			} else
+				builder.addField("", attachment.getUrl(), false);
+		}
+		
+		return builder;
+	}
+	
+	public static EmbedBuilder constructEmbedWithAuthor(User author, String title, String raw, int color) {
+		EmbedBuilder builder = new EmbedBuilder().setAuthor(author.getAsTag(), null, author.getEffectiveAvatarUrl());
+		builder.setTitle(title);
+		builder.setDescription(raw);
+		builder.setColor(color);
+		return builder;
+	}
+	
 }

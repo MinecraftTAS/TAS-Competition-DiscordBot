@@ -79,7 +79,6 @@ public class GuildConfigs {
 
 	private Properties createDefaultGuildProperties() {
 		Properties prop = new Properties();
-		prop.put("isCompetitionRunning", "false");
 		prop.putAll(ConfigValues.getDefaultValues());
 		return prop;
 	}

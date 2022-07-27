@@ -19,7 +19,8 @@ public class UtilTASCompBot {
 		List<Guild> participateGuilds = new ArrayList<>();
 		for (Guild guild : guilds) {
 			String roleID = TASCompBot.getBot().getGuildConfigs().getValue(guild, ConfigValues.PARTICIPATEROLE);
-			if (roleID == null) {
+			boolean isRunning = TASCompBot.getBot().getGuildConfigs().getValue(guild, ConfigValues.COMPETITION_RUNNING).equals("true");
+			if (roleID == null || !isRunning) {
 				continue;
 			}
 			Role role = guild.getRoleById(roleID);
