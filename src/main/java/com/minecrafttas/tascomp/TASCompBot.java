@@ -1,7 +1,6 @@
 package com.minecrafttas.tascomp;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
 import java.util.regex.Pattern;
@@ -14,10 +13,8 @@ import org.slf4j.LoggerFactory;
 import com.minecrafttas.tascomp.GuildConfigs.ConfigValues;
 import com.minecrafttas.tascomp.util.RoleWrapper;
 import com.minecrafttas.tascomp.util.Util;
-import com.minecrafttas.tascomp.util.UtilTASCompBot;
 import com.vdurmont.emoji.EmojiManager;
 
-import ch.qos.logback.core.util.ContentTypeUtil;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
@@ -25,7 +22,6 @@ import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.ChannelType;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.Message.Attachment;
 import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.MessageReference;
 import net.dv8tion.jda.api.entities.MessageType;
@@ -55,6 +51,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	private final GuildConfigs guildConfigs;
 	private final SubmissionHandler submissionHandler;
 	private final ParticipateOffer offer;
+	private final PrivateMessageHandler privateMessageHandler;
 	private static final Logger LOGGER = LoggerFactory.getLogger("TAS Competition");
 	public static final int color=0x0a8505;
 	
@@ -67,7 +64,8 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
                 .addEventListeners(this);
 		this.guildConfigs=new GuildConfigs(LOGGER);
 		this.submissionHandler = new SubmissionHandler(LOGGER);
-		this.offer= new ParticipateOffer(guildConfigs);
+		this.offer = new ParticipateOffer(guildConfigs);
+		this.privateMessageHandler = new PrivateMessageHandler(LOGGER, submissionHandler, guildConfigs);
 		this.jda = builder.build();
 		this.jda.awaitReady();
 	}
@@ -401,53 +399,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			else if(event.getChannelType()==ChannelType.PRIVATE) {
 				event.retrieveMessage().queue(msg -> {
 					if(Util.hasBotReactedWith(msg, reactionEmote.getFormatted())) {
-						
-						// Get participation guilds
-						List<Guild> participationGuilds = UtilTASCompBot.getActiveParticipationGuilds(msg.getAuthor());
-						
-						// React with a checkmark when participation guild, react with more if multiple
-						Guild participationGuild = null;
-						
-						if (participationGuilds.size() == 1) {
-							
-							participationGuild=participationGuilds.get(0);
-							
-						} else if (participationGuilds.size() > 1 && participationGuilds.size() < 10) {
-							int channelNumber = 0;
-							if(EmojiManager.containsEmoji(reactionEmote.getFormatted())) {
-								
-								String emoji=reactionEmote.getFormatted();
-								
-								channelNumber = UtilTASCompBot.unicodeToInt(emoji);
-							}
-							participationGuild=participationGuilds.get(channelNumber-1);
-						}
-						
-						//Submit command
-						String submit = MD2Embed.matchAndGet("^!submit (.+)", msg.getContentRaw(), 1);
-						
-						if(submit!=null) {
-							
-							if(isCompetitionRunning(participationGuild)) {
-								User user = msg.getAuthor();
-								submissionHandler.submit(participationGuild, user, msg, submit);
-							}
-							
-						} else {
-							// If no command was in the message
-							if(!guildConfigs.hasValue(participationGuild, ConfigValues.ORGANIZERCHANNEL)) {
-								Util.sendDeletableDirectMessage(event.getUser(), "The destination channel for the "+participationGuild.getName()+" was not set by their admins. You may alert them of this mistake...");
-								return;
-							}
-							MessageChannel channel = (MessageChannel) participationGuild
-									.getGuildChannelById(guildConfigs.getValue(participationGuild, ConfigValues.ORGANIZERCHANNEL));
-							
-							
-							Util.sendMessage(channel, Util.constructMessageWithAuthor(msg));
-							
-						}
-						
-						msg.removeReaction(reactionEmote).queue();
+						privateMessageHandler.processPrivateReactions(msg, reactionEmote, event.getUser());
 					}
 				});
 			}
@@ -497,28 +449,15 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 					} else if (Pattern.matches("^!debug", msg)) {
 						
 						List<String> guildList= new ArrayList<>();
-						UtilTASCompBot.getActiveParticipationGuilds(message.getAuthor()).forEach(guild -> {
+						PrivateMessageHandler.getActiveParticipationGuilds(message.getAuthor()).forEach(guild -> {
 							guildList.add(guild.getName());
 						});
 						Util.sendDeletableDirectMessage(message.getAuthor(), guildList.toString());
 					
+					} else if (Pattern.matches("^!help", msg)) {
+						sendPrivateCommandHelp(event.getAuthor());
 					} else {
-						
-						List<Guild> participationGuilds = UtilTASCompBot.getActiveParticipationGuilds(message.getAuthor());
-						
-						String checkmark = EmojiManager.getForAlias("white_check_mark").getUnicode();
-						if (participationGuilds.size() == 1) {
-							
-							message.addReaction(Emoji.fromUnicode(checkmark)).queue();
-							
-						} else if (participationGuilds.size() > 1 && participationGuilds.size() < 10) {
-							for (int i = 1; i <= participationGuilds.size(); i++) {
-
-								String emote = UtilTASCompBot.intToUnicode(i);
-								
-								message.addReaction(Emoji.fromUnicode(emote)).queue();
-							}
-						}
+						privateMessageHandler.setupReactions(message);
 					}
 				}
 			});
@@ -547,10 +486,12 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	
 
 	private void sendPrivateCommandHelp(User user) {
+		LOGGER.info("Sending private help to "+ user.getName());
 		EmbedBuilder builder = new EmbedBuilder();
 		builder.setTitle("Help/Commands");
-		builder.setDescription("When DMing this bot, your message will get forwarded to the organizers. They can also answer you through the bot.\n"
-				+ "If a message was forwarded correctly, the bot will react with a checkmark.\n"
+		builder.setDescription("When DMing this bot, your message will get forwarded to the organizers. They can also answer you through the bot.\n\n"
+				+ "When you send a message, the bot will react with a \uD83D\uDCE8. Reacting to that will forward the message to the organizers.\n"
+				+ "If the message was sent correctly, the bot will react with a \u2709\uFE0F\n\n"
 				+ "There are also commands you can use in DM's:");
 		builder.addField("!submit <link to submission and/or meme run>", "Adds a submission. To overwrite the last submission, just use `!submit` again.\n\n"
 				+ "*Example:* `/submit Submission: https://www.youtube.com/watch?v=3Tk6WaigTQk MemeRun: https://www.youtube.com/watch?v=dQw4w9WgXcQ`",false);
