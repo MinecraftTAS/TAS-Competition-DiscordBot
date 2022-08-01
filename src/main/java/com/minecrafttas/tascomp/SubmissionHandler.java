@@ -23,28 +23,28 @@ import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.User;
 
 public class SubmissionHandler {
-	
+
 	private Logger LOGGER;
 	private final HashMap<Long, Properties> guildSubmissions = new HashMap<>();
 	private final File submissionDir = new File("submissions/");
-	
+
 	public SubmissionHandler(Logger logger) {
-		this.LOGGER=logger;
-		if(!submissionDir.exists()) {
+		this.LOGGER = logger;
+		if (!submissionDir.exists()) {
 			submissionDir.mkdir();
 		}
 	}
-	
+
 	public void loadSubmissionsForGuild(Guild guild) {
 		Properties prop = new Properties();
-		
+
 		File submissionFile = new File(submissionDir, guild.getId() + ".xml");
-		if(submissionFile.exists()) {
+		if (submissionFile.exists()) {
 			prop = loadSubmissions(guild, submissionFile);
 			guildSubmissions.put(guild.getIdLong(), prop);
 		}
 	}
-	
+
 	private Properties loadSubmissions(Guild guild, File submissionFile) {
 		LOGGER.info("Loading submissions for guild {}...", guild.getName());
 		Properties guildConfig = new Properties();
@@ -61,75 +61,74 @@ public class SubmissionHandler {
 		}
 		return guildConfig;
 	}
-	
+
 	public void submit(Guild guild, User author, Message submitMessage, String raw) {
-		Message submission =  Util.constructMessageWithAuthor(submitMessage, "New submission!", raw, TASCompBot.color);
+		Message submission = Util.constructMessageWithAuthor(submitMessage, "New submission!", raw, TASCompBot.color);
 		submitInner(guild, author, submission, raw, true);
 	}
-	
+
 	public void submit(Guild guild, User author, String raw) {
 		Message submission = Util.constructMessageWithAuthor(author, "New manual submission!", raw, TASCompBot.color);
 		submitInner(guild, author, submission, raw, false);
 	}
-	
+
 	private void submitInner(Guild guild, User author, Message submitMessage, String raw, boolean dm) {
-		
-		long guildID=guild.getIdLong();
-		
-		String authorTag=author.getAsTag();
-		
+
+		long guildID = guild.getIdLong();
+
+		String authorTag = author.getAsTag();
+
 		GuildConfigs config = TASCompBot.getBot().getGuildConfigs();
-		
+
 		String submitChannelID = config.getValue(guild, ConfigValues.SUBMITCHANNEL);
 		MessageChannel submitChannel = null;
-		if(submitChannelID==null) {
+		if (submitChannelID == null) {
 			return;
 		} else {
 			submitChannel = (MessageChannel) guild.getGuildChannelById(submitChannelID);
 		}
-		
+
 		Properties guildSubmission = guildSubmissions.containsKey(guildID) ? guildSubmissions.get(guildID) : new Properties();
-		
+
 		boolean flag = guildSubmission.containsKey(authorTag);
-		
-		if(flag) {
+
+		if (flag) {
 			String submission = guildSubmission.getProperty(authorTag);
-			String messageID=submission.split(";", 2)[0];
+			String messageID = submission.split(";", 2)[0];
 			try {
 				submitChannel.retrieveMessageById(messageID).queue(msg -> {
 					MessageEmbed messageEmbed = msg.getEmbeds().get(0);
 					EmbedBuilder ebuilder = new EmbedBuilder(messageEmbed);
-					
+
 					ebuilder.setTitle("~~Previous submission~~");
 					ebuilder.setColor(0xB90000);
-					
+
 					msg.editMessageEmbeds(ebuilder.build()).queue();
 				});
 			} catch (Exception e) {
 				LOGGER.warn("Tried to get message {} but it was not found in the channel {}. Ignoring it...", messageID, submitChannel.getName());
 			}
 		}
-		
+
 		// Send the message to the submission channel
 		submitChannel.sendMessage(submitMessage).queue(msg -> {
-			String value= msg.getIdLong()+";" + raw;
-			
+			String value = msg.getIdLong() + ";" + raw;
+
 			guildSubmission.put(authorTag, value);
 			saveSubmission(guild, guildSubmission);
-			
-			
+
 			guildSubmissions.put(guild.getIdLong(), guildSubmission);
-			
-			String replyText=flag ? "Your submission was updated!" : "Your submission was saved!";
-			
-			if(dm) {
+
+			String replyText = flag ? "Your submission was updated!" : "Your submission was saved!";
+
+			if (dm) {
 				Util.sendDeletableDirectMessage(author, replyText);
 			}
 		});
 	}
-	
+
 	private void saveSubmission(Guild guild, Properties submission) {
-		
+
 		LOGGER.info("Saving submissions for guild {}...", guild.getName());
 		File submissionFile = new File(submissionDir, guild.getId() + ".xml");
 
@@ -148,7 +147,7 @@ public class SubmissionHandler {
 		saveSubmission(guild, guildSubmission);
 		Util.sendDeletableMessage(channel, "Cleared submission of " + author.getAsTag());
 	}
-	
+
 	public void clearAllSubmissions(Guild guild, MessageChannel channel) {
 		File submissionFile = new File(submissionDir, guild.getId() + ".xml");
 		if (submissionFile.exists()) {
@@ -162,7 +161,7 @@ public class SubmissionHandler {
 		}
 		Util.sendDeletableMessage(channel, "Cleared all submissions!");
 	}
-	
+
 	public void sendSubmissionList(Guild guild, MessageChannel channel) {
 		if (guildSubmissions.get(guild.getIdLong()) == null) {
 			Util.sendDeletableMessage(channel, "Submission list is empty!");
@@ -186,5 +185,5 @@ public class SubmissionHandler {
 		});
 		return builder.build();
 	}
-	
+
 }

@@ -62,7 +62,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				.setMemberCachePolicy(MemberCachePolicy.ALL)
                 .enableIntents(GatewayIntent.GUILD_MEMBERS, GatewayIntent.MESSAGE_CONTENT)
                 .addEventListeners(this);
-		this.guildConfigs=new GuildConfigs(LOGGER);
+		this.guildConfigs = new GuildConfigs(LOGGER);
 		this.submissionHandler = new SubmissionHandler(LOGGER);
 		this.offer = new ParticipateOffer(guildConfigs);
 		this.privateMessageHandler = new PrivateMessageHandler(LOGGER, submissionHandler, guildConfigs);
@@ -88,7 +88,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		LOGGER.info("Bot joined new guild {}.", event.getGuild().getName());
 		prepareGuild(event.getGuild());
 	}
-	
+
 	private void prepareGuild(Guild guild) {
 		LOGGER.info("Preparing guild {}...", guild.getName());
 		guild.loadMembers();
@@ -96,7 +96,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		guildConfigs.prepareConfig(guild);
 		submissionHandler.loadSubmissionsForGuild(guild);
 		scheduleMessageHandler.loadScheduledMessagesForGuild(guild);
-		
+
 		LOGGER.info("Done preparing guild {}!", guild.getName());
 	}
 
@@ -170,59 +170,69 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		
 		addSubCommandGroupRole.addSubcommands(setRoleSubcommands);
 		removeSubCommandGroupRole.addSubcommands(setRoleSubcommandsNoOption);
-		
+
 		setRoleCommand.addSubcommands(listSubCommand);
 		setRoleCommand.addSubcommandGroups(addSubCommandGroupRole, removeSubCommandGroupRole);
-		
-		//=========================== Preview
+
+		// =========================== Preview
 		CommandDataImpl previewCommand = new CommandDataImpl("preview", "Previews the embed from a markdown message");
 		previewCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
-		
+
 		OptionData messageIDOption = new OptionData(OptionType.STRING, "messageid", "The message id to preview");
 		messageIDOption.setRequired(true);
-		previewCommand.addOptions(messageIDOption);
 		
-		//=========================== SetRule
+		previewCommand.addOptions(messageIDOption);
+
+		// =========================== SetRule
 		CommandDataImpl setRuleCommand = new CommandDataImpl("setrulemessage", "Set's the rule message sent after typing /participate");
 		setRuleCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
-		
+
 		setRuleCommand.addOptions(messageIDOption);
-		
-		//=========================== Participate
+
+		// =========================== Participate
 		CommandDataImpl participateCommand = new CommandDataImpl("participate", "Participate in the Minecraft TAS Competition!");
 		participateCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
 		//=========================== Submit
 		CommandDataImpl submitCommand = new CommandDataImpl("submit", "Controls submissions");
 		submitCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
-		
-		SubcommandData submitAddSubCommand=new SubcommandData("add", "Manually adds a submission");
+
+		SubcommandData submitAddSubCommand = new SubcommandData("add", "Manually adds a submission");
 		OptionData userOption = new OptionData(OptionType.USER, "user", "The user of this submission");
 		userOption.setRequired(true);
 		OptionData submissionOption = new OptionData(OptionType.STRING, "submission", "The submission");
 		submissionOption.setRequired(true);
 		submitAddSubCommand.addOptions(userOption, submissionOption);
-		
-		SubcommandData submitClearSubCommand=new SubcommandData("clear", "Manually clears a submission");
+
+		SubcommandData submitClearSubCommand = new SubcommandData("clear", "Manually clears a submission");
 		submitClearSubCommand.addOptions(userOption);
-		
-		SubcommandData submitClearAllSubCommand=new SubcommandData("clearall", "Clears all submissions");
-		SubcommandData submitShowAllSubCommand=new SubcommandData("showall", "Shows all submissions");
-		
+
+		SubcommandData submitClearAllSubCommand = new SubcommandData("clearall", "Clears all submissions");
+		SubcommandData submitShowAllSubCommand = new SubcommandData("showall", "Shows all submissions");
+
 		submitCommand.addSubcommands(submitAddSubCommand, submitClearSubCommand, submitClearAllSubCommand, submitShowAllSubCommand);
 		//=========================== ScheduleMessage
-		CommandDataImpl scheduleMessage = new CommandDataImpl("schedulemessage", "Schedules a message to be sent by the bot");
+		CommandDataImpl scheduleMessageCommand = new CommandDataImpl("schedulemessage", "Schedules a message to be sent by the bot");
 		OptionData timestampOption = new OptionData(OptionType.STRING, "timestamp", "The timestamp when to schedule the message");
 		OptionData channelOption = new OptionData(OptionType.CHANNEL, "channel", "The channel where the message will be sent");
-		
-		scheduleMessage.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
-		
+
+		scheduleMessageCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
+
 		timestampOption.setRequired(true);
 		channelOption.setRequired(true);
+
+		scheduleMessageCommand.addOptions(timestampOption, channelOption, messageIDOption);
+
+		//=========================== Help
+		CommandDataImpl helpCommand = new CommandDataImpl("help", "SEND HELP AHHH");
+		helpCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
-		scheduleMessage.addOptions(timestampOption, channelOption, messageIDOption);
+		SubcommandData previewHelpSubCommand = new SubcommandData("previewcommand", "Send the preview command help");
+		SubcommandData setupHelpSubCommand = new SubcommandData("setup", "A checklist for setting up this bot");
 		
-		updater.addCommands(tascompCommand, setChannelCommand, setRoleCommand, previewCommand, setRuleCommand, participateCommand, submitCommand, scheduleMessage);
+		helpCommand.addSubcommands(previewHelpSubCommand, setupHelpSubCommand);
+		
+		updater.addCommands(tascompCommand, setChannelCommand, setRoleCommand, previewCommand, setRuleCommand, participateCommand, submitCommand, scheduleMessageCommand, helpCommand);
 		updater.queue();
 		LOGGER.info("Done preparing commands!");
 	}
@@ -307,11 +317,12 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 					}
 				}
 				// ================== Preview Command
-				else if (commandPath.equals("preview")) {
-					event.getMessageChannel().retrieveMessageById(event.getOption("messageid").getAsString()).submit().whenComplete((msg, throwable)->{
+				else if (commandPath.startsWith("preview")) {
+
+					event.getMessageChannel().retrieveMessageById(event.getOption("messageid").getAsString()).submit().whenComplete((msg, throwable) -> {
 						try {
-							EmbedBuilder embed=MD2Embed.parseEmbed(msg.getContentRaw(), color);
-							MessageBuilder newmsg=new MessageBuilder(embed);
+							EmbedBuilder embed = MD2Embed.parseEmbed(msg.getContentRaw(), color);
+							MessageBuilder newmsg = new MessageBuilder(embed);
 							Util.sendDeletableMessage(event.getChannel(), newmsg.build());
 						} catch (Exception e) {
 							Util.sendErrorMessage(event.getChannel(), e);
@@ -321,7 +332,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				}
 				// ================== SetRule Command
 				else if (commandPath.equals("setrulemessage")) {
-					event.getMessageChannel().retrieveMessageById(event.getOption("messageid").getAsString()).submit().whenComplete((msg, throwable)->{
+					event.getMessageChannel().retrieveMessageById(event.getOption("messageid").getAsString()).submit().whenComplete((msg, throwable) -> {
 						try {
 							guildConfigs.setValue(event.getGuild(), ConfigValues.RULEMSG, msg.getContentRaw());
 							MessageBuilder builder = new MessageBuilder();
@@ -336,12 +347,12 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				}
 				// ================== Participate Command
 				else if (commandPath.equals("participate")) {
-					if(shouldExecuteParticipate(event.getGuild())) {
-						if(offer!=null) {
-							if(!RoleWrapper.doesMemberHaveRole(event.getMember(), guildConfigs.getValue(event.getGuild(), ConfigValues.PARTICIPATEROLE))) {
+					if (shouldExecuteParticipate(event.getGuild())) {
+						if (offer != null) {
+							if (!RoleWrapper.doesMemberHaveRole(event.getMember(), guildConfigs.getValue(event.getGuild(), ConfigValues.PARTICIPATEROLE))) {
 								offer.startOffer(event.getGuild(), event.getUser());
-							}else {
-								Message msg = new MessageBuilder("<@"+event.getUser().getId()+"> You are already participating!").build();
+							} else {
+								Message msg = new MessageBuilder("<@" + event.getUser().getId() + "> You are already participating!").build();
 								Util.sendSelfDestructingMessage(event.getChannel(), msg, 10);
 							}
 						} else {
@@ -355,14 +366,11 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				else if (commandPath.startsWith("submit")) {
 					if (commandPath.equals("submit/add")) {
 						submissionHandler.submit(event.getGuild(), event.getOption("user").getAsUser(), event.getOption("submission").getAsString());
-					}
-					else if (commandPath.equals("submit/clear")) {
+					} else if (commandPath.equals("submit/clear")) {
 						submissionHandler.clearSubmission(event.getGuild(), event.getOption("user").getAsUser(), event.getMessageChannel());
-					}
-					else if (commandPath.equals("submit/clearall")) {
+					} else if (commandPath.equals("submit/clearall")) {
 						submissionHandler.clearAllSubmissions(event.getGuild(), event.getMessageChannel());
-					}
-					else if (commandPath.equals("submit/showall")) {
+					} else if (commandPath.equals("submit/showall")) {
 						submissionHandler.sendSubmissionList(event.getGuild(), event.getMessageChannel());
 					}
 				}
@@ -371,10 +379,62 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 					String timestamp = event.getOption("timestamp").getAsString();
 					MessageChannel channel = event.getOption("channel").getAsChannel().asGuildMessageChannel();
 					String messageId = event.getOption("messageid").getAsString();
-					
+
 					scheduleMessageHandler.scheduleMessage(event.getChannel().asGuildMessageChannel(), messageId, channel, timestamp);
 				}
-				
+				else if(commandPath.startsWith("help")) {
+					if(commandPath.equals("help/previewcommand")) {
+						String mdhelp = "```md\n"
+								+ "# Markdown to Embed\n"
+								+ "This system allows you to construct message embeds by the bot via a markdown message.\n"
+								+ "The command `/preview <messageId>` allows you to preview the embed before using it either via `/setrulemessage` or `/schedulemessage`.\n"
+								+ "This help is sent via the command `/help previewcommand`\n"
+								+ "\n"
+								+ "This part of the embed is called the description and is used as the main thing for content.\n"
+								+ "One # at the start indicates the title of the embed.\n"
+								+ "## Fields\n"
+								+ "Fields are sub headings designed to list something. ## Shows the title of the field and seperates the different fields.\n"
+								+ "## Second field\n"
+								+ "This is a second field for more categorization of the embed.\n"
+								+ "```";
+						
+						event.getMessageChannel().sendMessage(mdhelp).setEmbeds(MD2Embed.parseEmbed(mdhelp, color).build()).queue();
+					}
+					else if(commandPath.equals("help/setup")) {
+						String setuphelp = "```"
+								+ "# Setup\n"
+								+ "Here is a checklist for setting up the bot:"
+								+ "## 1. Create channels and roles\n"
+								+ "This bot is designed to have 3 different channels:\n"
+								+ "-`Organizer Channel`: If you DM the bot as a participant, the messages will get forwarded to this channel\n"
+								+ "-`Submission Channel`: If a participant submits a video via `!submit` this will get forwarded to this channel. Reason is that you want to seperate submissions from conversations\n"
+								+ "-`Participate Channel`: Channel where people can type /participate to get the participate role. The bot will leave a message there to show that it worked.\n"
+								+ "\n"
+								+ "-`Participate Role`: The role for participants. Decides if they are allowed to DM the bot and submit\n"
+								+ "-`Organizer Role`: Currently unused ._.\n"
+								+ "\n"
+								+ "## 2. Set the channels and roles to the config\n"
+								+ "Channels can be added with `/setchannel add <channeltype>` and removed with `/setchannel remove <channeltype>`\n"
+								+ "To view the current status, use `/setchannel list`\n"
+								+ "\n"
+								+ "Roles can be added with `/setroles add <roletype>` and work the same way as channels\n"
+								+ "## 3. Setup permissions in integration settings\n"
+								+ "Due to slash commands being relatively new, you can't set permissions programmatically and have to manually add them in the server settings ._.\n"
+								+ "You can restrict the `/participate` command to the participate channel, so that it can be used by everyone in only that channel\n"
+								+ "## 4. Set the rule message\n"
+								+ "When a user runs `/participate` the bot will dm them with the rules and a captcha which they have to solve to be granted with the participate role\n"
+								+ "You have to set these rules by first writing a markdown message, then copying the message id and use /setrulemessage <messageid> to set it."
+								+ "Further instructions on how to write markdown messages are in `/help previewcommand`"
+								+ "## 5. Start the TAS Competition\n"
+								+ "Use `/tascompetition start` to start the competition\n"
+								+ "Users can head to the participate channel and type /participate. The bot will DM them with the rules and a captcha which they have to solve to be granted with the participate role\n"
+								+ "Once that is done, users can send the bot DM's which will get forwarded to the organizerchannel. Organizers can reply to the bot messages to answer in DM's\n"
+								+ "Users can submit with !submit <message> to add a submission to the submission channel\n"
+								+ "```";
+						Util.sendMessage(event.getMessageChannel(), setuphelp);
+					}
+				}
+
 			// Error handling
 			} catch (Exception e) {
 				Util.sendErrorMessage(event.getMessageChannel(), e);
@@ -384,11 +444,11 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			hook.deleteOriginal().queue();
 		});
 	}
-	
-	private void addChannelToConfig(Guild guild, MessageChannel messageChannel, String subcommandName, long l) throws Exception{
+
+	private void addChannelToConfig(Guild guild, MessageChannel messageChannel, String subcommandName, long l) throws Exception {
 		guildConfigs.setValue(guild, subcommandName, messageChannel.getId());
 	}
-	
+
 	private void removeFromConfig(Guild guild, String subcommandName) throws Exception {
 		guildConfigs.removeValue(guild, subcommandName);
 	}
@@ -414,11 +474,11 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 					}
 				});
 			}
-			
+
 			// DMBridge Send
-			else if(event.getChannelType()==ChannelType.PRIVATE) {
+			else if (event.getChannelType() == ChannelType.PRIVATE) {
 				event.retrieveMessage().queue(msg -> {
-					if(Util.hasBotReactedWith(msg, reactionEmote.getFormatted())) {
+					if (Util.hasBotReactedWith(msg, reactionEmote.getFormatted())) {
 						privateMessageHandler.processPrivateReactions(msg, reactionEmote, event.getUser());
 					}
 				});
@@ -436,40 +496,36 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	
 	@Override
 	public void onMessageReceived(MessageReceivedEvent event) {
-		if(event.getChannelType()==ChannelType.PRIVATE) {
+		if (event.getChannelType() == ChannelType.PRIVATE) {
 			event.getChannel().retrieveMessageById(event.getMessageId()).queue(message -> {
 				if (!Util.isThisUserThisBot(event.getAuthor())) {
 					String msg = message.getContentRaw();
-					
+
 					// Accept
 					String accept = MD2Embed.matchAndGet("^!accept (\\w{5})", msg, 1);
-					
+
 					if (accept != null) {
 						User user = message.getAuthor();
 						Guild guild = offer.checkCode(user, accept);
 						if (guild != null) {
 							Util.sendSelfDestructingDirectMessage(user, "You are now participating!", 20);
 							sendPrivateCommandHelp(user);
-							
-							
-							Role participationRole = guild
-									.getRoleById(guildConfigs.getValue(guild, ConfigValues.PARTICIPATEROLE));
-	
+
+							Role participationRole = guild.getRoleById(guildConfigs.getValue(guild, ConfigValues.PARTICIPATEROLE));
+
 							guild.addRoleToMember(user, participationRole).queue();
-	
-							MessageChannel channel = (MessageChannel) guild
-									.getGuildChannelById(guildConfigs.getValue(guild, ConfigValues.PARTICIPATECHANNEL));
-	
-							Message guildMessage = Util.constructEmbedMessage(user.getName() + " is now participating!",
-									"Type `/participate` if you also want to join the TAS Competition!", color);
-	
+
+							MessageChannel channel = (MessageChannel) guild.getGuildChannelById(guildConfigs.getValue(guild, ConfigValues.PARTICIPATECHANNEL));
+
+							Message guildMessage = Util.constructEmbedMessage(user.getName() + " is now participating!", "Type `/participate` if you also want to join the TAS Competition!", color);
+
 							Util.sendMessage(channel, guildMessage);
 						}
-						
+
 					} else if (Pattern.matches("^!servers", msg)) {
-						
+
 						privateMessageHandler.sendActiveCompetitions(event.getAuthor());
-					
+
 					} else if (Pattern.matches("^!help", msg)) {
 						sendPrivateCommandHelp(event.getAuthor());
 					} else {
@@ -479,21 +535,23 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			});
 		}
 		else if (event.getChannel().getIdLong() == Long.parseLong(guildConfigs.getValue(event.getGuild(), ConfigValues.ORGANIZERCHANNEL))) {
-			
+
 			event.getChannel().retrieveMessageById(event.getMessageId()).queue(message -> {
-				
-				if(message.getType()==MessageType.INLINE_REPLY) {
-					MessageReference replymessage=message.getMessageReference();
-					
-					if(replymessage.getMessage().getEmbeds().size()!=0) {
-						
-						String name=replymessage.getMessage().getEmbeds().get(0).getAuthor().getName();
-						User replyUser=event.getGuild().getMemberByTag(name).getUser();
-						MessageBuilder newMessage=new MessageBuilder(message);
-						message.getAttachments().forEach(attachment -> {
-							newMessage.append(attachment.getUrl());
-						});
-						Util.sendDeletableDirectMessage(replyUser, newMessage.build());
+
+				if (message.getType() == MessageType.INLINE_REPLY) {
+					if (!Util.isThisUserThisBot(message.getAuthor())) {
+						MessageReference replymessage = message.getMessageReference();
+
+						if (replymessage.getMessage().getEmbeds().size() != 0) {
+
+							String name = replymessage.getMessage().getEmbeds().get(0).getAuthor().getName();
+							User replyUser = event.getGuild().getMemberByTag(name).getUser();
+							MessageBuilder newMessage = new MessageBuilder(message);
+							message.getAttachments().forEach(attachment -> {
+								newMessage.append(attachment.getUrl());
+							});
+							Util.sendDeletableDirectMessage(replyUser, newMessage.build());
+						}
 					}
 				}
 			});
@@ -521,7 +579,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	public GuildConfigs getGuildConfigs() {
 		return guildConfigs;
 	}
-	
+
 	public boolean isCompetitionRunning(Guild guild) {
 		return guildConfigs.getValue(guild, ConfigValues.COMPETITION_RUNNING).equals("true");
 	}
