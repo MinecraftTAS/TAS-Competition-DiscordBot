@@ -9,6 +9,8 @@ import com.minecrafttas.tascomp.GuildConfigs.ConfigValues;
 import com.minecrafttas.tascomp.util.Util;
 import com.vdurmont.emoji.EmojiManager;
 
+import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
@@ -27,6 +29,8 @@ public class PrivateMessageHandler {
 
 	private GuildConfigs guildConfigs;
 	
+	private List<String> multiParticipationWarning = new ArrayList<>();
+	
 	public PrivateMessageHandler(Logger logger, SubmissionHandler submissionHandler, GuildConfigs guildConfigs) {
 		LOGGER=logger;
 		LOGGER.info("Preparing private message handler...");
@@ -43,7 +47,12 @@ public class PrivateMessageHandler {
 			message.addReaction(singleGuildEmoji).queue();
 
 		} else if (participationGuilds.size() > 1 && participationGuilds.size() < 10) {
-
+			
+			if(!multiParticipationWarning.contains(message.getAuthor().getAsTag())) {
+				multiParticipationWarning.add(message.getAuthor().getAsTag());
+				sendActiveCompetitions(message.getAuthor());
+			}
+			
 			for (int i = 1; i <= participationGuilds.size(); i++) {
 				message.addReaction(intToEmoji(i)).queue();
 			}
@@ -129,6 +138,24 @@ public class PrivateMessageHandler {
 		}
 	}
 
+	public void sendActiveCompetitions(User user) {
+		EmbedBuilder builder = new EmbedBuilder();
+		builder.setTitle("Active TAS Competitions");
+		builder.setDescription("This list shows you all TAS Competitions that you are currently participating in and the emoji you need react in order to submit something.\n\n"
+				+ "If there is only one server you are participating in, the bot will react with a \uD83D\uDCE8. Reacting to that will forward the message to the organizers.\n\n"
+				+ "If you participate in multiple servers, the server will react with 1\uFE0F\u20E3, 2\uFE0F\u20E3, 3\uFE0F\u20E3 etc... Use this list to look up the correct server\n\n"
+				+ "`!servers` will display this info again");
+		List<Guild> guilds = PrivateMessageHandler.getActiveParticipationGuilds(user);
+		int i=1;
+		for (Guild guild : guilds) {
+			builder.addField("", i+"\uFE0F\u20E3 "+guild.getName(), false);
+			i++;
+		}
+		builder.setColor(TASCompBot.color);
+		Message msg = new MessageBuilder(builder).build();
+		Util.sendDeletableDirectMessage(user, msg);
+	}
+	
 	public static int emojiToInt(Emoji emoji) {
 		return unicodeToInt(emoji.getFormatted());
 	}

@@ -1,7 +1,5 @@
 package com.minecrafttas.tascomp;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
@@ -30,6 +28,7 @@ import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.message.MessageDeleteEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -52,6 +51,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	private final SubmissionHandler submissionHandler;
 	private final ParticipateOffer offer;
 	private final PrivateMessageHandler privateMessageHandler;
+	private final ScheduleMessageHandler scheduleMessageHandler;
 	private static final Logger LOGGER = LoggerFactory.getLogger("TAS Competition");
 	public static final int color=0x0a8505;
 	
@@ -66,6 +66,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		this.submissionHandler = new SubmissionHandler(LOGGER);
 		this.offer = new ParticipateOffer(guildConfigs);
 		this.privateMessageHandler = new PrivateMessageHandler(LOGGER, submissionHandler, guildConfigs);
+		this.scheduleMessageHandler = new ScheduleMessageHandler(LOGGER);
 		this.jda = builder.build();
 		this.jda.awaitReady();
 	}
@@ -94,6 +95,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		prepareCommands(guild);
 		guildConfigs.prepareConfig(guild);
 		submissionHandler.loadSubmissionsForGuild(guild);
+		scheduleMessageHandler.loadScheduledMessagesForGuild(guild);
 		
 		LOGGER.info("Done preparing guild {}!", guild.getName());
 	}
@@ -208,9 +210,19 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		SubcommandData submitShowAllSubCommand=new SubcommandData("showall", "Shows all submissions");
 		
 		submitCommand.addSubcommands(submitAddSubCommand, submitClearSubCommand, submitClearAllSubCommand, submitShowAllSubCommand);
+		//=========================== ScheduleMessage
+		CommandDataImpl scheduleMessage = new CommandDataImpl("schedulemessage", "Schedules a message to be sent by the bot");
+		OptionData timestampOption = new OptionData(OptionType.STRING, "timestamp", "The timestamp when to schedule the message");
+		OptionData channelOption = new OptionData(OptionType.CHANNEL, "channel", "The channel where the message will be sent");
 		
+		scheduleMessage.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
-		updater.addCommands(tascompCommand, setChannelCommand, setRoleCommand, previewCommand, setRuleCommand, participateCommand, submitCommand);
+		timestampOption.setRequired(true);
+		channelOption.setRequired(true);
+		
+		scheduleMessage.addOptions(timestampOption, channelOption, messageIDOption);
+		
+		updater.addCommands(tascompCommand, setChannelCommand, setRoleCommand, previewCommand, setRuleCommand, participateCommand, submitCommand, scheduleMessage);
 		updater.queue();
 		LOGGER.info("Done preparing commands!");
 	}
@@ -354,6 +366,14 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 						submissionHandler.sendSubmissionList(event.getGuild(), event.getMessageChannel());
 					}
 				}
+				// ================== ScheduleMessage Command
+				else if (commandPath.startsWith("schedulemessage")) {
+					String timestamp = event.getOption("timestamp").getAsString();
+					MessageChannel channel = event.getOption("channel").getAsChannel().asGuildMessageChannel();
+					String messageId = event.getOption("messageid").getAsString();
+					
+					scheduleMessageHandler.scheduleMessage(event.getChannel().asGuildMessageChannel(), messageId, channel, timestamp);
+				}
 				
 			// Error handling
 			} catch (Exception e) {
@@ -446,13 +466,9 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 							Util.sendMessage(channel, guildMessage);
 						}
 						
-					} else if (Pattern.matches("^!debug", msg)) {
+					} else if (Pattern.matches("^!servers", msg)) {
 						
-						List<String> guildList= new ArrayList<>();
-						PrivateMessageHandler.getActiveParticipationGuilds(message.getAuthor()).forEach(guild -> {
-							guildList.add(guild.getName());
-						});
-						Util.sendDeletableDirectMessage(message.getAuthor(), guildList.toString());
+						privateMessageHandler.sendActiveCompetitions(event.getAuthor());
 					
 					} else if (Pattern.matches("^!help", msg)) {
 						sendPrivateCommandHelp(event.getAuthor());
@@ -484,7 +500,6 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		}
 	}
 	
-
 	private void sendPrivateCommandHelp(User user) {
 		LOGGER.info("Sending private help to "+ user.getName());
 		EmbedBuilder builder = new EmbedBuilder();
@@ -493,8 +508,11 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				+ "When you send a message, the bot will react with a \uD83D\uDCE8. Reacting to that will forward the message to the organizers.\n"
 				+ "If the message was sent correctly, the bot will react with a \u2709\uFE0F\n\n"
 				+ "There are also commands you can use in DM's:");
+		
 		builder.addField("!submit <link to submission and/or meme run>", "Adds a submission. To overwrite the last submission, just use `!submit` again.\n\n"
 				+ "*Example:* `/submit Submission: https://www.youtube.com/watch?v=3Tk6WaigTQk MemeRun: https://www.youtube.com/watch?v=dQw4w9WgXcQ`",false);
+		
+		builder.addField("!servers", "A list of servers hosting a TAS Competition and in which you are participating. Useful if this bot is used for multiple TAS Competitions on different servers", false);
 		builder.addField("!help", "Get this help again", false);
 		builder.setColor(color);
 		Util.sendDeletableDirectMessage(user, new MessageBuilder(builder).build());
@@ -506,5 +524,10 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	
 	public boolean isCompetitionRunning(Guild guild) {
 		return guildConfigs.getValue(guild, ConfigValues.COMPETITION_RUNNING).equals("true");
+	}
+	
+	@Override
+	public void onMessageDelete(MessageDeleteEvent event) {
+		scheduleMessageHandler.onDelete(event.getGuild(), event.getMessageIdLong());
 	}
 }

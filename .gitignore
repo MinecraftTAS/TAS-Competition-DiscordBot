@@ -17,6 +17,8 @@ out/
 .properties
 *.properties
 configs/
+submissions/
+scheduled/
 
 # JDA stuff
 dv8tion/
