@@ -10,14 +10,15 @@ import com.minecrafttas.tascomp.util.Util;
 import com.vdurmont.emoji.EmojiManager;
 
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
+import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
+import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 
 public class PrivateMessageHandler {
 	
@@ -84,9 +85,8 @@ public class PrivateMessageHandler {
 				Util.sendDeletableDirectMessage(dmUser, "The destination channel for "+participationGuild.getName()+" was not set by their admins. You may alert them of this mistake...");
 				return;
 			}
-			MessageChannel channel = (MessageChannel) participationGuild
-					.getGuildChannelById(guildConfigs.getValue(participationGuild, ConfigValues.ORGANIZERCHANNEL));
-			
+			MessageChannel channel = participationGuild
+					.getChannelById(MessageChannel.class, guildConfigs.getValue(participationGuild, ConfigValues.ORGANIZERCHANNEL));
 			
 			Util.sendMessage(channel, Util.constructMessageWithAuthor(messsage));
 			
@@ -152,7 +152,7 @@ public class PrivateMessageHandler {
 			i++;
 		}
 		builder.setColor(TASCompBot.color);
-		Message msg = new MessageBuilder(builder).build();
+		MessageCreateData msg = new MessageCreateBuilder().setEmbeds(builder.build()).build();
 		Util.sendDeletableDirectMessage(user, msg);
 	}
 	

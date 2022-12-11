@@ -17,11 +17,11 @@ import org.slf4j.Logger;
 
 import com.minecrafttas.tascomp.util.Util;
 
-import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.MessageChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.utils.TimeFormat;
 import net.dv8tion.jda.api.utils.Timestamp;
+import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 
 public class ScheduleMessageHandler {
 
@@ -122,9 +122,9 @@ public class ScheduleMessageHandler {
 			};
 			timer.schedule(task, date);
 
-			MessageBuilder previewMessageBuilder = null;
+			MessageCreateBuilder previewMessageBuilder = null;
 			try {
-				previewMessageBuilder = new MessageBuilder(MD2Embed.parseEmbed(msg.getContentRaw(), TASCompBot.color).build());
+				previewMessageBuilder = new MessageCreateBuilder().addEmbeds(MD2Embed.parseEmbed(msg.getContentRaw(), TASCompBot.color).build());
 			} catch (Exception e) {
 				e.printStackTrace();
 			}

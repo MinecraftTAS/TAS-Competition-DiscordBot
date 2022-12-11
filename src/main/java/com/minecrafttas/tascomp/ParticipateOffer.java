@@ -13,11 +13,12 @@ import com.minecrafttas.tascomp.util.WarpedImage;
 import com.vdurmont.emoji.EmojiManager;
 
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
+import net.dv8tion.jda.api.utils.FileUpload;
+import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
+import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 
 public class ParticipateOffer {
 	private static Timer timer= new Timer();
@@ -47,9 +48,11 @@ public class ParticipateOffer {
 		EmbedBuilder embed=MD2Embed.parseEmbed(configs.getValue(guild, ConfigValues.RULEMSG), TASCompBot.color);
 		embed.addField("Accepting:", "To accept, write `!accept <code in the image>`", false);
 		embed.setImage("attachment://captcha.png");
-		Message msg = new MessageBuilder(embed).build();
+		MessageCreateData msg = new MessageCreateBuilder().setEmbeds(embed.build()).build();
 		user.openPrivateChannel().queue(channel ->{
-			channel.sendMessage(msg).addFile(WarpedImage.makeCaptcha(code), "captcha.png").queue(msg2-> msg2.addReaction(Emoji.fromUnicode(EmojiManager.getForAlias(":x:").getUnicode())).queue());
+			
+			FileUpload upload = FileUpload.fromData(WarpedImage.makeCaptcha(code), "captcha.png");
+			channel.sendMessage(msg).addFiles(upload).queue(msg2-> msg2.addReaction(Emoji.fromUnicode(EmojiManager.getForAlias(":x:").getUnicode())).queue());
 		});
 		
 		offerList.put(user.getIdLong(), new Offer(guild, user, code));

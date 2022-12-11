@@ -7,16 +7,17 @@ import com.minecrafttas.tascomp.TASCompBot;
 import com.vdurmont.emoji.EmojiManager;
 
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.Message.Attachment;
-import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.MessageReaction;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
+import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
+import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 
 public class Util {
 
@@ -38,7 +39,7 @@ public class Util {
 	 * @param channel A message channel
 	 * @param message A message object
 	 */
-	public static void sendMessage(MessageChannel channel, Message message) {
+	public static void sendMessage(MessageChannel channel, MessageCreateData message) {
 		channel.sendMessage(message).queue();
 	}
 
@@ -60,7 +61,7 @@ public class Util {
 	 * @param channel
 	 * @param message
 	 */
-	public static void sendDeletableMessage(MessageChannel channel, Message message) {
+	public static void sendDeletableMessage(MessageChannel channel, MessageCreateData message) {
 		channel.sendMessage(message).queue(msg -> msg.addReaction(Emoji.fromUnicode(deletableEmoji)).queue());
 	}
 
@@ -84,7 +85,7 @@ public class Util {
 	 * @param message The message
 	 * @param time    The time in seconds after it is being deleted
 	 */
-	public static void sendSelfDestructingMessage(MessageChannel channel, Message message, int time) {
+	public static void sendSelfDestructingMessage(MessageChannel channel, MessageCreateData message, int time) {
 		channel.sendMessage(message).queue(msg -> {
 			msg.delete().queueAfter(time, TimeUnit.SECONDS);
 		});
@@ -179,17 +180,18 @@ public class Util {
 		if (e.getMessage() != null) {
 			message = e.getMessage();
 		}
-		Message msg = new MessageBuilder(new EmbedBuilder().setTitle("Error ._.")
-				.addField(e.getClass().getSimpleName(), message, false).setColor(0xB90000)).build();
+		MessageCreateData msg = new MessageCreateBuilder().addEmbeds(
+				new EmbedBuilder().setTitle("Error ._.")
+				.addField(e.getClass().getSimpleName(), message, false).setColor(0xB90000).build()).build();
 		sendDeletableMessage(channel, msg);
 	}
 
-	public static Message constructEmbedMessage(String title, String description, int color) {
-		return new MessageBuilder(new EmbedBuilder().setTitle(title).setDescription(description).setColor(color))
+	public static MessageCreateData constructEmbedMessage(String title, String description, int color) {
+		return new MessageCreateBuilder().addEmbeds(new EmbedBuilder().setTitle(title).setDescription(description).setColor(color).build())
 				.build();
 	}
 
-	public static void sendDeletableDirectMessage(User user, Message message) {
+	public static void sendDeletableDirectMessage(User user, MessageCreateData message) {
 		user.openPrivateChannel().queue(channel -> {
 			sendDeletableMessage(channel, message);
 		});
@@ -201,7 +203,7 @@ public class Util {
 		});
 	}
 
-	public static void sendSelfDestructingDirectMessage(User user, Message message, int time) {
+	public static void sendSelfDestructingDirectMessage(User user, MessageCreateData message, int time) {
 		user.openPrivateChannel().queue(channel -> {
 			sendSelfDestructingMessage(channel, message, time);
 		});
@@ -213,19 +215,19 @@ public class Util {
 		});
 	}
 
-	public static Message constructMessageWithAuthor(Message msg) {
+	public static MessageCreateData constructMessageWithAuthor(Message msg) {
 		return constructMessageWithAuthor(msg, "", msg.getContentRaw(), 0xFFFFFF);
 	}
 	
-	public static Message constructMessageWithAuthor(Message msg, String title, String raw, int color) {
+	public static MessageCreateData constructMessageWithAuthor(Message msg, String title, String raw, int color) {
 		
-		MessageBuilder mbuilder=new MessageBuilder(constructEmbedWithAuthor(msg, title, raw, color));
+		MessageCreateBuilder mbuilder=new MessageCreateBuilder().addEmbeds(constructEmbedWithAuthor(msg, title, raw, color).build());
 		
 		return mbuilder.build();
 	}
 	
-	public static Message constructMessageWithAuthor(User author, String title, String raw, int color) {
-		MessageBuilder mbuilder=new MessageBuilder(constructEmbedWithAuthor(author, title, raw, color));
+	public static MessageCreateData constructMessageWithAuthor(User author, String title, String raw, int color) {
+		MessageCreateBuilder mbuilder=new MessageCreateBuilder().addEmbeds(constructEmbedWithAuthor(author, title, raw, color).build());
 		return mbuilder.build();
 	}
 

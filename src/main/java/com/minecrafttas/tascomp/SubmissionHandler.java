@@ -15,12 +15,13 @@ import com.minecrafttas.tascomp.GuildConfigs.ConfigValues;
 import com.minecrafttas.tascomp.util.Util;
 
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
+import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
+import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 
 public class SubmissionHandler {
 
@@ -63,16 +64,16 @@ public class SubmissionHandler {
 	}
 
 	public void submit(Guild guild, User author, Message submitMessage, String raw) {
-		Message submission = Util.constructMessageWithAuthor(submitMessage, "New submission!", raw, TASCompBot.color);
+		MessageCreateData submission = Util.constructMessageWithAuthor(submitMessage, "New submission!", raw, TASCompBot.color);
 		submitInner(guild, author, submission, raw, true);
 	}
 
 	public void submit(Guild guild, User author, String raw) {
-		Message submission = Util.constructMessageWithAuthor(author, "New manual submission!", raw, TASCompBot.color);
+		MessageCreateData submission = Util.constructMessageWithAuthor(author, "New manual submission!", raw, TASCompBot.color);
 		submitInner(guild, author, submission, raw, false);
 	}
 
-	private void submitInner(Guild guild, User author, Message submitMessage, String raw, boolean dm) {
+	private void submitInner(Guild guild, User author, MessageCreateData submission2, String raw, boolean dm) {
 
 		long guildID = guild.getIdLong();
 
@@ -111,7 +112,7 @@ public class SubmissionHandler {
 		}
 
 		// Send the message to the submission channel
-		submitChannel.sendMessage(submitMessage).queue(msg -> {
+		submitChannel.sendMessage(submission2).queue(msg -> {
 			String value = msg.getIdLong() + ";" + raw;
 
 			guildSubmission.put(authorTag, value);
@@ -168,7 +169,7 @@ public class SubmissionHandler {
 			return;
 		}
 
-		MessageBuilder builder = new MessageBuilder(getSubmissionList(guild));
+		MessageCreateBuilder builder = new MessageCreateBuilder().setEmbeds(getSubmissionList(guild));
 		channel.sendMessage(builder.build()).queue();
 	}
 
