@@ -8,6 +8,7 @@ import net.dv8tion.jda.api.EmbedBuilder;
 public class MD2Embed {
 	
 	public static EmbedBuilder parseEmbed(String embedString, int color) throws Exception{
+		// TODO Error handling with too many characters
 		EmbedBuilder builder = new EmbedBuilder();
 		builder.setColor(color);
 		String[] lines = embedString.split("\n");

@@ -1,5 +1,6 @@
 package com.minecrafttas.tascomp;
 
+import java.util.List;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
@@ -186,8 +187,13 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		// =========================== SetRule
 		CommandDataImpl setRuleCommand = new CommandDataImpl("setrulemessage", "Set's the rule message sent after typing /participate");
 		setRuleCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
-
-		setRuleCommand.addOptions(messageIDOption);
+		
+		SubcommandData setRuleGetSubcommand = new SubcommandData("get", "Gets the current rule message");
+		SubcommandData setRuleSetSubcommand = new SubcommandData("set", "Sets the current rule message");
+		
+		setRuleSetSubcommand.addOptions(messageIDOption);
+		
+		setRuleCommand.addSubcommands(setRuleGetSubcommand, setRuleSetSubcommand);
 
 		// =========================== Participate
 		CommandDataImpl participateCommand = new CommandDataImpl("participate", "Participate in the Minecraft TAS Competition!");
@@ -331,19 +337,24 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 					});
 				}
 				// ================== SetRule Command
-				else if (commandPath.equals("setrulemessage")) {
-					event.getMessageChannel().retrieveMessageById(event.getOption("messageid").getAsString()).submit().whenComplete((msg, throwable) -> {
-						try {
-							guildConfigs.setValue(event.getGuild(), ConfigValues.RULEMSG, msg.getContentRaw());
-							MessageCreateBuilder builder = new MessageCreateBuilder();
-							builder.setContent("Set the rule message to:");
-							builder.setEmbeds(MD2Embed.parseEmbed(msg.getContentRaw(), color).build());
-							Util.sendSelfDestructingMessage(event.getMessageChannel(), builder.build(), 20);
-						} catch (Exception e) {
-							Util.sendErrorMessage(event.getChannel(), e);
-							e.printStackTrace();
-						}
-					});
+				else if (commandPath.startsWith("setrulemessage")) {
+					if(commandPath.startsWith("setrulemessage/set")) {
+						event.getMessageChannel().retrieveMessageById(event.getOption("messageid").getAsString()).submit().whenComplete((msg, throwable) -> {
+							try {
+								guildConfigs.setValue(event.getGuild(), ConfigValues.RULEMSG, msg.getContentRaw());
+								MessageCreateBuilder builder = new MessageCreateBuilder();
+								builder.setContent("Set the rule message to:");
+								builder.setEmbeds(MD2Embed.parseEmbed(msg.getContentRaw(), color).build());
+								Util.sendSelfDestructingMessage(event.getMessageChannel(), builder.build(), 20);
+							} catch (Exception e) {
+								Util.sendErrorMessage(event.getChannel(), e);
+								e.printStackTrace();
+							}
+						});
+					}
+					else if(commandPath.startsWith("setrulemessage/get")) {
+						Util.sendDeletableMessage(event.getMessageChannel(), guildConfigs.getValue(event.getGuild(), ConfigValues.RULEMSG));
+					}
 				}
 				// ================== Participate Command
 				else if (commandPath.equals("participate")) {
@@ -403,7 +414,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 					else if(commandPath.equals("help/setup")) {
 						String setuphelp = "```md\n"
 								+ "# Setup\n"
-								+ "Here is a checklist for setting up the bot:"
+								+ "Here is a checklist for setting up the bot:\n"
 								+ "## 1. Create channels and roles\n"
 								+ "This bot is designed to have 3 different channels:\n"
 								+ "-`Organizer Channel`: If you DM the bot as a participant, the messages will get forwarded to this channel\n"
@@ -421,12 +432,10 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 								+ "## 3. Setup permissions in integration settings\n"
 								+ "Due to slash commands being relatively new, you can't set permissions programmatically and have to manually add them in the server settings ._.\n"
 								+ "You can restrict the `/participate` command to the participate channel, so that it can be used by everyone in only that channel\n"
-								+ "```";
-						String setuphelp2 = "```md\n"
 								+ "## 4. Set the rule message\n"
 								+ "When a user runs `/participate` the bot will dm them with the rules and a captcha which they have to solve to be granted with the participate role.\n"
-								+ "You have to set these rules by first writing a markdown message, then copying the message id and use /setrulemessage <messageid> to set it."
-								+ "Further instructions on how to write markdown messages are in `/help previewcommand`"
+								+ "You have to set these rules by first writing a markdown message, then copying the message id and use /setrulemessage <messageid> to set it.\n"
+								+ "Further instructions on how to write markdown messages are in `/help previewcommand`\n"
 								+ "## 5. Start the TAS Competition\n"
 								+ "Use `/tascompetition start` to start the competition\n"
 								+ "Users can head to the participate channel and type /participate. The bot will DM them with the rules and a captcha which they have to solve to be granted with the participate role\n"
@@ -434,9 +443,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 								+ "Users can submit with !submit <message> to add a submission to the submission channel\n"
 								+ "```";
 						MessageCreateData msg1=new MessageCreateBuilder().setEmbeds(MD2Embed.parseEmbed(setuphelp, color).build()).build();
-						MessageCreateData msg2=new MessageCreateBuilder().setEmbeds(MD2Embed.parseEmbed(setuphelp2, color).build()).build();
 						Util.sendMessage(event.getMessageChannel(), msg1);
-						Util.sendMessage(event.getMessageChannel(), msg2);
 					}
 				}
 
@@ -535,6 +542,11 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 						sendPrivateCommandHelp(event.getAuthor());
 					} else {
 						privateMessageHandler.setupReactions(message);
+						
+						List<Guild> guilds = PrivateMessageHandler.getActiveParticipationGuilds(event.getAuthor());
+						if(guilds.size()>0 && Pattern.matches("^!submit (.+)", message.getContentRaw()) && !privateMessageHandler.hasSubmitted(event.getAuthor(), guilds)) {
+							Util.sendDeletableDirectMessage(event.getAuthor(), "*Tip:*\nTo send off the submission, react with "+privateMessageHandler.singleGuildEmoji.getAsReactionCode()+" to your message");
+						}
 					}
 				}
 			});
@@ -573,7 +585,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				+ "There are also commands you can use in DM's:");
 		
 		builder.addField("!submit <link to submission and/or meme run>", "Adds a submission. To overwrite the last submission, just use `!submit` again.\n\n"
-				+ "*Example:* `/submit Submission: https://www.youtube.com/watch?v=3Tk6WaigTQk MemeRun: https://www.youtube.com/watch?v=dQw4w9WgXcQ`",false);
+				+ "*Example:* `!submit Submission: https://www.youtube.com/watch?v=3Tk6WaigTQk MemeRun: https://www.youtube.com/watch?v=dQw4w9WgXcQ`",false);
 		
 		builder.addField("!servers", "A list of servers hosting a TAS Competition and in which you are participating. Useful if this bot is used for multiple TAS Competitions on different servers", false);
 		builder.addField("!help", "Get this help again", false);

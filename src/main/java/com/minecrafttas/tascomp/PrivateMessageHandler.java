@@ -24,7 +24,7 @@ public class PrivateMessageHandler {
 	
 	private static Logger LOGGER;
 	
-	private final Emoji singleGuildEmoji=Emoji.fromUnicode(EmojiManager.getForAlias("incoming_envelope").getUnicode());
+	public final Emoji singleGuildEmoji=Emoji.fromUnicode(EmojiManager.getForAlias("incoming_envelope").getUnicode());
 
 	private SubmissionHandler submissionHandler;
 
@@ -69,27 +69,37 @@ public class PrivateMessageHandler {
 			return;
 		}
 		
-		//Submit command
-		String submit = MD2Embed.matchAndGet("^!submit (.+)", messsage.getContentRaw(), 1);
-		
-		if(submit!=null) {
+		try {
+			//Submit command
+			String submit = MD2Embed.matchAndGet("^!submit (.+)", messsage.getContentRaw(), 1);
 			
-			if(TASCompBot.getBot().isCompetitionRunning(participationGuild)) {
-				User user = messsage.getAuthor();
-				submissionHandler.submit(participationGuild, user, messsage, submit);
+			if(submit!=null) {
+				
+				if(submit.length()>1024) {
+					Util.sendErrorDirectMessage(dmUser, "The submission is too long!", "A submission has a maximum char length of 1024 characters.\n"
+							+ "Edit your message and react with "+singleGuildEmoji.getAsReactionCode()+ " to try again.");
+					return;
+				}
+				if(TASCompBot.getBot().isCompetitionRunning(participationGuild)) {
+					User user = messsage.getAuthor();
+					submissionHandler.submit(participationGuild, user, messsage, submit);
+				}
+				
+			} else {
+				// If no command was in the message
+				if(!guildConfigs.hasValue(participationGuild, ConfigValues.ORGANIZERCHANNEL)) {
+					Util.sendDeletableDirectMessage(dmUser, "The destination channel for "+participationGuild.getName()+" was not set by their admins. You may alert them of this mistake...");
+					return;
+				}
+				MessageChannel channel = participationGuild
+						.getChannelById(MessageChannel.class, guildConfigs.getValue(participationGuild, ConfigValues.ORGANIZERCHANNEL));
+				
+				Util.sendMessage(channel, Util.constructMessageWithAuthor(messsage));
+				
 			}
-			
-		} else {
-			// If no command was in the message
-			if(!guildConfigs.hasValue(participationGuild, ConfigValues.ORGANIZERCHANNEL)) {
-				Util.sendDeletableDirectMessage(dmUser, "The destination channel for "+participationGuild.getName()+" was not set by their admins. You may alert them of this mistake...");
-				return;
-			}
-			MessageChannel channel = participationGuild
-					.getChannelById(MessageChannel.class, guildConfigs.getValue(participationGuild, ConfigValues.ORGANIZERCHANNEL));
-			
-			Util.sendMessage(channel, Util.constructMessageWithAuthor(messsage));
-			
+		} catch(Exception e) {
+			Util.sendErrorDirectMessage(dmUser, e);
+			return;
 		}
 		
 		messsage.removeReaction(reactionEmote).queue();
@@ -241,5 +251,14 @@ public class PrivateMessageHandler {
 		default:
 			return false;
 		}
+	}
+	
+	public boolean hasSubmitted(User author, List<Guild> guilds) {
+		for(Guild guild: guilds) {
+			if(submissionHandler.hasSubmitted(author, guild)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

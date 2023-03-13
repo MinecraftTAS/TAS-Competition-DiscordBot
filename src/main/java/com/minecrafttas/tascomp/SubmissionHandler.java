@@ -5,9 +5,12 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.InvalidPropertiesFormatException;
+import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 
 import org.slf4j.Logger;
 
@@ -85,9 +88,8 @@ public class SubmissionHandler {
 		MessageChannel submitChannel = null;
 		if (submitChannelID == null) {
 			return;
-		} else {
-			submitChannel = (MessageChannel) guild.getGuildChannelById(submitChannelID);
 		}
+		submitChannel = (MessageChannel) guild.getGuildChannelById(submitChannelID);
 
 		Properties guildSubmission = guildSubmissions.containsKey(guildID) ? guildSubmissions.get(guildID) : new Properties();
 
@@ -168,23 +170,49 @@ public class SubmissionHandler {
 			Util.sendDeletableMessage(channel, "Submission list is empty!");
 			return;
 		}
-
-		MessageCreateBuilder builder = new MessageCreateBuilder().setEmbeds(getSubmissionList(guild));
-		channel.sendMessage(builder.build()).queue();
+		
+		List<MessageEmbed> embeds = getSubmissionList(guild);
+		for(MessageEmbed embed: embeds) {
+			MessageCreateBuilder builder = new MessageCreateBuilder().setEmbeds(embed);
+			channel.sendMessage(builder.build()).queue();
+		}
 	}
 
-	private MessageEmbed getSubmissionList(Guild guild) {
+	private List<MessageEmbed> getSubmissionList(Guild guild) {
 		Properties submission = guildSubmissions.get(guild.getIdLong());
 		EmbedBuilder builder = new EmbedBuilder();
 		builder.setTitle("All submissions!");
-		builder.setColor(0x00EAFF);
+		int color = 0x00EAFF;
+		builder.setColor(color);
 
-		submission.forEach((left, right) -> {
-			String author = (String) left;
-			String message = (String) right;
+		List<MessageEmbed> embeds = new ArrayList<>();
+		
+		Set<Object> keys = submission.keySet();
+		
+		int count=0;
+		
+		for(Object key: keys) {
+			count++;
+			if(count%25==0) {
+				embeds.add(builder.build());
+				builder = new EmbedBuilder();
+				builder.setColor(color);
+			}
+			Object value = submission.get(key);
+			
+			String author = (String) key;
+			String message = (String) value;
 			builder.addField(author, message.split(";", 2)[1], false);
-		});
-		return builder.build();
+		}
+		embeds.add(builder.build());
+		return embeds;
 	}
 
+	public boolean hasSubmitted(User author, Guild guild) {
+		Properties guildSubmission = guildSubmissions.get(guild.getIdLong());
+		if(guildSubmission==null) {
+			return false;
+		}
+		return guildSubmission.containsKey((Object)author.getAsTag());
+	}
 }

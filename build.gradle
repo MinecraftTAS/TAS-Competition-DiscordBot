@@ -17,7 +17,7 @@ repositories {
 mainClassName='com.minecrafttas.tascomp.main.Main'
 
 dependencies {
-	implementation group: 'net.dv8tion', name: 'JDA', version: '5.0.0-beta.2'
+	implementation group: 'net.dv8tion', name: 'JDA', version: '5.0.0-beta.5'
 	implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
 	implementation files('libs/emoji-java-5.1.1.jar')
 	implementation group: 'commons-io', name: 'commons-io', version: '2.11.0'

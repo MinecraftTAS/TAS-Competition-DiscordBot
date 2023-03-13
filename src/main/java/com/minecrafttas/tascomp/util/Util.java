@@ -214,6 +214,22 @@ public class Util {
 			sendSelfDestructingMessage(channel, message, time);
 		});
 	}
+	
+	public static void sendErrorDirectMessage(User user, String title, String description) {
+		user.openPrivateChannel().queue(channel -> {
+
+			MessageCreateData msg = new MessageCreateBuilder().addEmbeds(
+					new EmbedBuilder().setTitle(title)
+					.setDescription(description).setColor(0xB90000).build()).build();
+			sendDeletableMessage(channel, msg);
+		});
+	}
+	
+	public static void sendErrorDirectMessage(User user, Exception exception) {
+		user.openPrivateChannel().queue(channel -> {
+			sendErrorMessage(channel, exception);
+		});
+	}
 
 	public static MessageCreateData constructMessageWithAuthor(Message msg) {
 		return constructMessageWithAuthor(msg, "", msg.getContentRaw(), 0xFFFFFF);

@@ -31,7 +31,7 @@ public class WarpedImage {
 			g.fillOval(x, y, w, d);
 		}
 		
-		g.setFont(new Font("", Font.BOLD, 250 / 5));
+		g.setFont(new Font("Cascadia Code", Font.BOLD, 250 / 5));
 		for (int i = 0; i < 5; i++) {
 			g.setColor(rrgb(60, 80));
 			
