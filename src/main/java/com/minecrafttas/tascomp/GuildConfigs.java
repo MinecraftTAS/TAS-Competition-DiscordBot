@@ -186,4 +186,19 @@ public class GuildConfigs {
 		return configDir;
 	}
 
+	public void removeValues(Guild guild, ConfigValues... configValues) {
+		for(ConfigValues key: configValues) {
+			Properties property = guildConfigs.get(guild.getIdLong());
+			if(property==null) {
+				throw new NullPointerException("Can't remove the property, because it can't find a guild config");
+			}
+			if(key.defaultvalue==null) {
+				property.remove(key.keyname);
+			}else {
+				property.put(key.keyname, key.defaultvalue);
+			}
+		}
+		saveConfig(guild);
+	}
+
 }

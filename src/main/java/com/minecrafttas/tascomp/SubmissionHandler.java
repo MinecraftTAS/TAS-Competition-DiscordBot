@@ -23,11 +23,14 @@ import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
+import net.dv8tion.jda.api.events.interaction.command.GenericCommandInteractionEvent;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 
 public class SubmissionHandler {
 
+	// TODO Rewrite submissionhandler
+	
 	private Logger LOGGER;
 	private final HashMap<Long, Properties> guildSubmissions = new HashMap<>();
 	private final File submissionDir = new File("submissions/");
@@ -144,14 +147,15 @@ public class SubmissionHandler {
 		}
 	}
 
-	public void clearSubmission(Guild guild, User author, MessageChannel channel) {
-		Properties guildSubmission = guildSubmissions.get(guild.getIdLong());
+	public void clearSubmission(GenericCommandInteractionEvent event, User author) {
+		Properties guildSubmission = guildSubmissions.get(event.getGuild().getIdLong());
 		guildSubmission.remove(author.getAsTag());
-		saveSubmission(guild, guildSubmission);
-		Util.sendDeletableMessage(channel, "Cleared submission of " + author.getAsTag());
+		saveSubmission(event.getGuild(), guildSubmission);
+		Util.sendDeletableReply(event, "Cleared submission of " + author.getAsTag());
 	}
 
-	public void clearAllSubmissions(Guild guild, MessageChannel channel) {
+	public void clearAllSubmissions(GenericCommandInteractionEvent event) {
+		Guild guild = event.getGuild();
 		File submissionFile = new File(submissionDir, guild.getId() + ".xml");
 		if (submissionFile.exists()) {
 			submissionFile.delete();
@@ -159,22 +163,23 @@ public class SubmissionHandler {
 		if (guildSubmissions.get(guild.getIdLong()) != null) {
 			guildSubmissions.remove(guild.getIdLong());
 		} else {
-			Util.sendDeletableMessage(channel, "Nothing to clear!");
+			Util.sendDeletableReply(event, "Nothing to clear!");
 			return;
 		}
-		Util.sendDeletableMessage(channel, "Cleared all submissions!");
+		Util.sendDeletableReply(event, "Cleared all submissions!");
 	}
 
-	public void sendSubmissionList(Guild guild, MessageChannel channel) {
+	public void sendSubmissionList(GenericCommandInteractionEvent event) {
+		Guild guild = event.getGuild();
 		if (guildSubmissions.get(guild.getIdLong()) == null) {
-			Util.sendDeletableMessage(channel, "Submission list is empty!");
+			Util.sendDeletableReply(event, "Submission list is empty!");
 			return;
 		}
 		
 		List<MessageEmbed> embeds = getSubmissionList(guild);
 		for(MessageEmbed embed: embeds) {
 			MessageCreateBuilder builder = new MessageCreateBuilder().setEmbeds(embed);
-			channel.sendMessage(builder.build()).queue();
+			Util.sendDeletableReply(event, builder.build());
 		}
 	}
 

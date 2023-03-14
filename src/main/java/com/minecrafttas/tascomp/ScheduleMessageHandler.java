@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import com.minecrafttas.tascomp.util.Util;
 
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.utils.TimeFormat;
 import net.dv8tion.jda.api.utils.Timestamp;
@@ -87,7 +88,8 @@ public class ScheduleMessageHandler {
 		}
 	}
 
-	public void scheduleMessage(MessageChannel sourceChannel, String messageId, MessageChannel targetChannel, String timestampString) throws Exception {
+	public void scheduleMessage(MessageChannel sourceChannel, User author, String messageId, MessageChannel targetChannel, String timestampString) throws Exception {
+		//TODO Handle files in messages
 		sourceChannel.retrieveMessageById(messageId).queue(msg -> {
 
 			Timestamp timestampTarget = TimeFormat.parse(timestampString);
@@ -129,7 +131,7 @@ public class ScheduleMessageHandler {
 				e.printStackTrace();
 			}
 
-			previewMessageBuilder.setContent("Scheduled message to " + TimeFormat.DATE_TIME_SHORT.format(timestampTarget.getTimestamp()) + " in channel " + targetChannel.getAsMention() + "\n\n" 
+			previewMessageBuilder.setContent("@"+author.getAsTag()+" Scheduled message to " + TimeFormat.DATE_TIME_SHORT.format(timestampTarget.getTimestamp()) + " in channel " + targetChannel.getAsMention() + "\n\n" 
 			+ "Delete this bot message to cancel the scheduling message");
 
 			sourceChannel.sendMessage(previewMessageBuilder.build()).queue(msg2 -> {

@@ -70,6 +70,7 @@ public class PrivateMessageHandler {
 		}
 		
 		try {
+			// TODO Remove !submit and more
 			//Submit command
 			String submit = MD2Embed.matchAndGet("^!submit (.+)", messsage.getContentRaw(), 1);
 			
@@ -86,6 +87,9 @@ public class PrivateMessageHandler {
 				}
 				
 			} else {
+				// TODO Open a thread instead of just a message
+				// TODO Better dmbridge with avatar as user
+				
 				// If no command was in the message
 				if(!guildConfigs.hasValue(participationGuild, ConfigValues.ORGANIZERCHANNEL)) {
 					Util.sendDeletableDirectMessage(dmUser, "The destination channel for "+participationGuild.getName()+" was not set by their admins. You may alert them of this mistake...");
