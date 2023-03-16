@@ -28,7 +28,6 @@ import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
-import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.MessageContextInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -46,9 +45,6 @@ import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.interactions.components.selections.EntitySelectMenu;
 import net.dv8tion.jda.api.interactions.components.selections.EntitySelectMenu.SelectTarget;
-import net.dv8tion.jda.api.interactions.components.text.TextInput;
-import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
-import net.dv8tion.jda.api.interactions.modals.Modal;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
@@ -152,10 +148,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		CommandDataImpl participateCommand = new CommandDataImpl("participate", "Participate in the Minecraft TAS Competition!");
 		participateCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
-		//=========================== Submit
-		CommandDataImpl submitCommand = new CommandDataImpl("submit", "Submit your TAS!");
-		
-		//=========================== Forcesubmit
+		// =========================== Forcesubmit
 		CommandDataImpl forcesubmitCommand = new CommandDataImpl("forcesubmit", "Controls submissions");
 		forcesubmitCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 
@@ -173,21 +166,25 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		SubcommandData submitShowAllSubCommand = new SubcommandData("showall", "Shows all submissions");
 
 		forcesubmitCommand.addSubcommands(forcesubmitAddSubCommand, submitClearSubCommand, submitClearAllSubCommand, submitShowAllSubCommand);
-		//=========================== ScheduleMessage
+		
+		// =========================== ScheduleMessage
+		CommandData scheduleMessageContext = Commands.message("Schedule message");
+		
 		CommandDataImpl scheduleMessageCommand = new CommandDataImpl("schedulemessage", "Schedules a message to be sent by the bot");
 		OptionData timestampOption = new OptionData(OptionType.STRING, "timestamp", "The timestamp when to schedule the message");
 		OptionData channelOption = new OptionData(OptionType.CHANNEL, "channel", "The channel where the message will be sent");
 
 		scheduleMessageCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
-		OptionData messageIDOption = new OptionData(OptionType.STRING, "messageid", "The message id to preview");
-
+		OptionData messageIDOption = new OptionData(OptionType.STRING, "messageid", "The message id");
+		
 		timestampOption.setRequired(true);
 		channelOption.setRequired(true);
+		messageIDOption.setRequired(true);
 		
-		scheduleMessageCommand.addOptions(timestampOption, channelOption, messageIDOption);
+		scheduleMessageCommand.addOptions(messageIDOption, timestampOption, channelOption);
 
-		//=========================== Help
+		// =========================== Help
 		CommandDataImpl helpCommand = new CommandDataImpl("help", "SEND HELP AHHH");
 		helpCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
@@ -196,11 +193,11 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		
 		helpCommand.addSubcommands(previewHelpSubCommand, setupHelpSubCommand);
 		
-		//=========================== Test
+		// =========================== Test
 		CommandDataImpl testCommand = new CommandDataImpl("test", "Testing things");
 		testCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
-		updater.addCommands(tascompCommand, setupCommand, previewContext, getRuleCommand, setRuleContext, participateCommand, submitCommand, forcesubmitCommand, scheduleMessageCommand, helpCommand, testCommand);
+		updater.addCommands(tascompCommand, setupCommand, previewContext, getRuleCommand, setRuleContext, participateCommand, forcesubmitCommand, scheduleMessageContext, scheduleMessageCommand, helpCommand, testCommand);
 		updater.queue();
 		LOGGER.info("Done preparing commands!");
 	}
@@ -268,13 +265,13 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			}
 			// ================== Forcesubmit Command
 			else if (commandPath.startsWith("forcesubmit")) {
-				if (commandPath.equals("fubmit/add")) {
+				if (commandPath.equals("forcesubmit/add")) {
 					submissionHandler.submit(event.getGuild(), event.getOption("user").getAsUser(), event.getOption("submission").getAsString());
-				} else if (commandPath.equals("submit/clear")) {
+				} else if (commandPath.equals("forcesubmit/clear")) {
 					submissionHandler.clearSubmission(event, event.getOption("user").getAsUser());
-				} else if (commandPath.equals("submit/clearall")) {
+				} else if (commandPath.equals("forcesubmit/clearall")) {
 					submissionHandler.clearAllSubmissions(event);
-				} else if (commandPath.equals("submit/showall")) {
+				} else if (commandPath.equals("forcesubmit/showall")) {
 					submissionHandler.sendSubmissionList(event);
 				}
 			}
@@ -349,29 +346,9 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 					Util.sendReply(event, msg1, true);
 				}
 			}
-			else if(commandPath.startsWith("submit")) {
-				TextInput main = TextInput.create("main", "Main Submission", TextInputStyle.SHORT).setPlaceholder("Youtube Link").setRequiredRange(10, 500).build();
-				TextInput meme = TextInput.create("meme", "Meme Run (optional)", TextInputStyle.SHORT).setPlaceholder("Youtube Link").setRequiredRange(0, 500).build();
-				Modal modal = Modal.create("submit-task", "Submit Task").addActionRow(main).addActionRow(meme).build();
-				event.replyModal(modal).queue();
-			}
 		}catch (Exception e) {
 			Util.sendErrorReply(event, e, true);
 		}
-	}
-	
-	
-	@Override
-	public void onModalInteraction(ModalInteractionEvent event) {
-        if (event.getModalId().equals("submit-task")) {
-        	try {
-        		String main = event.getValue("main").getAsString();
-        		String meme = event.getValue("meme").getAsString();
-        		submissionHandler.submit(event.getGuild(), event.getUser(), main+"\n"+meme);
-        	} catch (Exception e){
-        		Util.sendErrorReply(event, e);
-        	}
-        }
 	}
 	
 	private String getSetup(Guild guild) {
@@ -415,6 +392,18 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				MessageCreateBuilder builder = new MessageCreateBuilder();
 				builder.setContent("Set the rule message to:");
 				builder.setEmbeds(MD2Embed.parseEmbed(msg.getContentRaw(), color).build());
+				Util.sendReply(event, builder.build(), true);
+			} catch (Exception e) {
+				Util.sendErrorReply(event, e, true);
+				e.printStackTrace();
+			}
+		}
+		// ================== Schedule Message
+		else if(event.getName().equals("Schedule message")) {
+			try {
+				Message msg = event.getTarget();
+				MessageCreateBuilder builder = new MessageCreateBuilder();
+				builder.setContent("`/schedulemessage "+msg.getId()+"`");
 				Util.sendReply(event, builder.build(), true);
 			} catch (Exception e) {
 				Util.sendErrorReply(event, e, true);

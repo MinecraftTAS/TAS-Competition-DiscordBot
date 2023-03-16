@@ -20,6 +20,7 @@ import com.minecrafttas.tascomp.util.Util;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.Message.Attachment;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
@@ -29,8 +30,6 @@ import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 
 public class SubmissionHandler {
 
-	// TODO Rewrite submissionhandler
-	
 	private Logger LOGGER;
 	private final HashMap<Long, Properties> guildSubmissions = new HashMap<>();
 	private final File submissionDir = new File("submissions/");
@@ -71,6 +70,11 @@ public class SubmissionHandler {
 
 	public void submit(Guild guild, User author, Message submitMessage, String raw) {
 		MessageCreateData submission = Util.constructMessageWithAuthor(submitMessage, "New submission!", raw, TASCompBot.color);
+		
+		for(Attachment attach : submitMessage.getAttachments()) {
+			raw+="\n"+attach.getUrl();
+		}
+		
 		submitInner(guild, author, submission, raw, true);
 	}
 
