@@ -283,7 +283,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		
 				event.deferReply().queue(hook ->{
 					try {
-						scheduleMessageHandler.scheduleMessage(event.getChannel().asGuildMessageChannel(), event.getUser(), messageId, channel, timestamp);
+						scheduleMessageHandler.scheduleMessage(event.getGuild(), event.getChannel().asGuildMessageChannel(), event.getUser(), messageId, channel, timestamp);
 					} catch (Exception e) {
 						Util.sendErrorMessage(event.getChannel(), e);
 						e.printStackTrace();
@@ -376,8 +376,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		if (event.getName().equals("Preview embed")) {
 			try {
 				Message msg = event.getTarget();
-				EmbedBuilder embed = MD2Embed.parseEmbed(msg.getContentRaw(), color);
-				MessageCreateBuilder newmsg = new MessageCreateBuilder().setEmbeds(embed.build());
+				MessageCreateBuilder newmsg = MD2Embed.parseMessage(msg, color);
 				Util.sendReply(event, newmsg.build(), true);
 			} catch (Exception e) {
 				Util.sendErrorReply(event, e, true);
@@ -557,7 +556,6 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			});
 		}
 		else if (event.getChannel().getIdLong() == Long.parseLong(guildConfigs.getValue(event.getGuild(), ConfigValues.ORGANIZERCHANNEL))) {
-
 			event.getChannel().retrieveMessageById(event.getMessageId()).queue(message -> {
 
 				if (message.getType() == MessageType.INLINE_REPLY) {

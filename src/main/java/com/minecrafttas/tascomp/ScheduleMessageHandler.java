@@ -49,11 +49,15 @@ public class ScheduleMessageHandler {
 		File submissionFile = new File(scheduledDir, guild.getId() + ".xml");
 		if (submissionFile.exists()) {
 			prop = loadScheduledMessages(guild, submissionFile);
+			
+			Properties tempProp = (Properties) prop.clone();
+			
 			scheduledMessages.put(guild.getIdLong(), prop);
-			prop.forEach((target, fileString) -> {
+			tempProp.forEach((target, fileString) -> {
 				long targetId = Long.parseLong((String) target);
 				scheduleMessage(guild, (String) fileString, targetId);
 			});
+			saveScheduledMessages(guild, prop);
 		}
 	}
 
@@ -88,8 +92,7 @@ public class ScheduleMessageHandler {
 		}
 	}
 
-	public void scheduleMessage(MessageChannel sourceChannel, User author, String messageId, MessageChannel targetChannel, String timestampString) throws Exception {
-		//TODO Handle files in messages
+	public void scheduleMessage(Guild guild, MessageChannel sourceChannel, User author, String messageId, MessageChannel targetChannel, String timestampString) throws Exception {
 		sourceChannel.retrieveMessageById(messageId).queue(msg -> {
 
 			Timestamp timestampTarget = TimeFormat.parse(timestampString);
@@ -107,8 +110,7 @@ public class ScheduleMessageHandler {
 				@Override
 				public void run() {
 					try {
-						targetChannel.sendMessageEmbeds(MD2Embed.parseEmbed(msg.getContentRaw(), TASCompBot.color).build()).queue();
-						;
+						targetChannel.sendMessage(MD2Embed.parseMessage(msg, TASCompBot.color).build()).queue();
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -118,6 +120,7 @@ public class ScheduleMessageHandler {
 						if (task.equals(this)) {
 							timerTasks.remove(msgId);
 							scheduledMessages.remove(msgId);
+							removeFromProperties(guild, msgId);
 						}
 					});
 				}
@@ -126,20 +129,23 @@ public class ScheduleMessageHandler {
 
 			MessageCreateBuilder previewMessageBuilder = null;
 			try {
-				previewMessageBuilder = new MessageCreateBuilder().addEmbeds(MD2Embed.parseEmbed(msg.getContentRaw(), TASCompBot.color).build());
+				previewMessageBuilder = MD2Embed.parseMessage(msg, TASCompBot.color);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
+			
+			String messageContent = previewMessageBuilder.getContent();
+			String messageRaw = MD2Embed.parseMessageAsString(msg);
 
-			previewMessageBuilder.setContent("@"+author.getAsTag()+" Scheduled message to " + TimeFormat.DATE_TIME_SHORT.format(timestampTarget.getTimestamp()) + " in channel " + targetChannel.getAsMention() + "\n\n" 
-			+ "Delete this bot message to cancel the scheduling message");
+			previewMessageBuilder.setContent(author.getAsMention()+" Scheduled message to " + TimeFormat.DATE_TIME_SHORT.format(timestampTarget.getTimestamp()) + " in channel " + targetChannel.getAsMention() + "\n\n" 
+			+ "Delete this bot message to cancel the message scheduling\n----------------------------------------------\n"+messageContent);
 
 			sourceChannel.sendMessage(previewMessageBuilder.build()).queue(msg2 -> {
 
 				long guildID = msg2.getGuild().getIdLong();
 				Properties guildMsgs = scheduledMessages.containsKey(guildID) ? scheduledMessages.get(guildID) : new Properties();
 
-				String fileString = timestampString + "|" + targetChannel.getId() + "|" + msg.getContentRaw();
+				String fileString = timestampString + "|" + targetChannel.getId() + "|" + messageRaw;
 
 				guildMsgs.put(msg2.getId(), fileString);
 				scheduledMessages.put(guildID, guildMsgs);
@@ -164,7 +170,6 @@ public class ScheduleMessageHandler {
 			LOGGER.warn("Tried to readded {} to the timer list but the scheduled time is already over: {}", targetMsgId, date.toString());
 			Properties prop = scheduledMessages.get(guild.getIdLong());
 			prop.remove(Long.toString(targetMsgId));
-			saveScheduledMessages(guild, prop);
 			return;
 		}
 
@@ -177,8 +182,7 @@ public class ScheduleMessageHandler {
 			@Override
 			public void run() {
 				try {
-					targetChannel.sendMessageEmbeds(MD2Embed.parseEmbed(messageContent, TASCompBot.color).build()).queue();
-					;
+					targetChannel.sendMessage(MD2Embed.parseMessage(messageContent, TASCompBot.color).build()).queue();
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -188,6 +192,7 @@ public class ScheduleMessageHandler {
 					if (task.equals(this)) {
 						timerTasks.remove(msgId);
 						scheduledMessages.remove(msgId);
+						removeFromProperties(guild, targetMsgId);
 					}
 				});
 			}
@@ -202,9 +207,13 @@ public class ScheduleMessageHandler {
 			LOGGER.info("Removing scheduled message {}", msgId);
 			timerTasks.get(msgId).cancel();
 			timerTasks.remove(msgId);
-			Properties prop = scheduledMessages.get(guild.getIdLong());
-			prop.remove(Long.toString(msgId));
-			saveScheduledMessages(guild, prop);
+			removeFromProperties(guild, msgId);
 		}
+	}
+	
+	private void removeFromProperties(Guild guild, long msgId) {
+		Properties prop = scheduledMessages.get(guild.getIdLong());
+		prop.remove(Long.toString(msgId));
+		saveScheduledMessages(guild, prop);
 	}
 }
