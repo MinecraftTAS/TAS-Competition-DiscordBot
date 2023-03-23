@@ -19,8 +19,8 @@ out/
 configs/
 submissions/
 scheduled/
+dmbridge/
 
 # JDA stuff
 dv8tion/
 iwebpp/
-submissions/

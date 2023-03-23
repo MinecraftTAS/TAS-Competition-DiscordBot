@@ -279,9 +279,13 @@ public class Util {
 		return constructMessageWithAuthor(msg, "", msg.getContentRaw(), 0xFFFFFF);
 	}
 	
+	public static MessageCreateData constructMessageWithAuthor(Message msg, int color) {
+		return constructMessageWithAuthor(msg, "", msg.getContentRaw(), color);
+	}
+	
 	public static MessageCreateData constructMessageWithAuthor(Message msg, String title, String raw, int color) {
 		
-		MessageCreateBuilder mbuilder=new MessageCreateBuilder().addEmbeds(constructEmbedWithAuthor(msg, title, raw, color).build());
+		MessageCreateBuilder mbuilder=new MessageCreateBuilder().addEmbeds(constructEmbedWithAuthor(msg, title, raw, color, true).build());
 		
 		return mbuilder.build();
 	}
@@ -291,7 +295,7 @@ public class Util {
 		return mbuilder.build();
 	}
 
-	public static EmbedBuilder constructEmbedWithAuthor(Message msg, String title, String raw, int color) {
+	public static EmbedBuilder constructEmbedWithAuthor(Message msg, String title, String raw, int color, boolean image) {
 		EmbedBuilder builder = new EmbedBuilder().setAuthor(msg.getAuthor().getAsTag(), null, msg.getAuthor().getEffectiveAvatarUrl());
 		builder.setDescription(raw);
 		
@@ -301,14 +305,16 @@ public class Util {
 		builder.setColor(color);
 		
 		boolean flag=false;
-		for (Attachment attachment : msg.getAttachments()) {
-			String contentType=attachment.getContentType();
-			
-			if(contentType.contains("image/") && !flag) {
-				builder.setImage(attachment.getUrl());
-				flag=true;
-			} else
-				builder.addField("", attachment.getUrl(), false);
+		if(image) {
+			for (Attachment attachment : msg.getAttachments()) {
+				String contentType=attachment.getContentType();
+				
+				if(contentType.contains("image/") && !flag) {
+					builder.setImage(attachment.getUrl());
+					flag=true;
+				} else
+					builder.addField("", attachment.getUrl(), false);
+			}
 		}
 		
 		return builder;
@@ -316,7 +322,9 @@ public class Util {
 	
 	public static EmbedBuilder constructEmbedWithAuthor(User author, String title, String raw, int color) {
 		EmbedBuilder builder = new EmbedBuilder().setAuthor(author.getAsTag(), null, author.getEffectiveAvatarUrl());
-		builder.setTitle(title);
+		if(!title.isEmpty()) {
+			builder.setTitle(title);
+		}
 		builder.setDescription(raw);
 		builder.setColor(color);
 		return builder;
@@ -365,5 +373,11 @@ public class Util {
 		event.reply(msg).setEphemeral(ephermal).queue();
 	}
 
-
+	public static String getAttachmentsAsString(Message msg) {
+		String out="";
+		for(Attachment attachment : msg.getAttachments()) {
+			out += "\n"+attachment.getUrl();
+		}
+		return out;
+	}
 }

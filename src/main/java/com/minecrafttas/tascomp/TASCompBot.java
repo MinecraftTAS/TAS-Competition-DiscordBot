@@ -19,14 +19,16 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.MessageReference;
-import net.dv8tion.jda.api.entities.MessageType;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
+import net.dv8tion.jda.api.events.channel.ChannelDeleteEvent;
+import net.dv8tion.jda.api.events.channel.update.ChannelUpdateArchivedEvent;
 import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.api.events.interaction.command.MessageContextInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
@@ -60,7 +62,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	private final GuildConfigs guildConfigs;
 	private final SubmissionHandler submissionHandler;
 	private final ParticipateOffer offer;
-	private final PrivateMessageHandler privateMessageHandler;
+	private final DMBridge dmBridgeHandler;
 	private final ScheduleMessageHandler scheduleMessageHandler;
 	private static final Logger LOGGER = LoggerFactory.getLogger("TAS Competition");
 	public static final int color=0x0a8505;
@@ -75,7 +77,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		this.guildConfigs = new GuildConfigs(LOGGER);
 		this.submissionHandler = new SubmissionHandler(LOGGER);
 		this.offer = new ParticipateOffer(guildConfigs);
-		this.privateMessageHandler = new PrivateMessageHandler(LOGGER, submissionHandler, guildConfigs);
+		this.dmBridgeHandler = new DMBridge(LOGGER, submissionHandler, guildConfigs);
 		this.scheduleMessageHandler = new ScheduleMessageHandler(LOGGER);
 		this.jda = builder.build();
 		this.jda.awaitReady();
@@ -106,6 +108,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		guildConfigs.prepareConfig(guild);
 		submissionHandler.loadSubmissionsForGuild(guild);
 		scheduleMessageHandler.loadScheduledMessagesForGuild(guild);
+		dmBridgeHandler.loadDMBridgesForGuild(guild);
 
 		LOGGER.info("Done preparing guild {}!", guild.getName());
 	}
@@ -167,6 +170,17 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 
 		forcesubmitCommand.addSubcommands(forcesubmitAddSubCommand, submitClearSubCommand, submitClearAllSubCommand, submitShowAllSubCommand);
 		
+		// =========================== StartDM
+		
+		CommandDataImpl startDMCommand = new CommandDataImpl("startdm", "Starts a DM through the bot");
+		OptionData userOption2 = new OptionData(OptionType.USER, "user", "The user to send this dm to");
+		OptionData startingMessage = new OptionData(OptionType.STRING, "startmessage", "The message to start the DM with");
+		userOption2.setRequired(true);
+		startingMessage.setRequired(true);
+		
+		startDMCommand.addOptions(userOption2, startingMessage);
+		
+		
 		// =========================== ScheduleMessage
 		CommandData scheduleMessageContext = Commands.message("Schedule message");
 		
@@ -197,7 +211,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		CommandDataImpl testCommand = new CommandDataImpl("test", "Testing things");
 		testCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
-		updater.addCommands(tascompCommand, setupCommand, previewContext, getRuleCommand, setRuleContext, participateCommand, forcesubmitCommand, scheduleMessageContext, scheduleMessageCommand, helpCommand, testCommand);
+		updater.addCommands(tascompCommand, setupCommand, previewContext, getRuleCommand, setRuleContext, participateCommand, forcesubmitCommand, startDMCommand, scheduleMessageContext, scheduleMessageCommand, helpCommand, testCommand);
 		updater.queue();
 		LOGGER.info("Done preparing commands!");
 	}
@@ -217,12 +231,22 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			// ================== TAS Competition Command
 			if(commandPath.startsWith("tascompetition/")) {
 				if (event.getSubcommandName().equals("start")) {
+					if(isCompetitionRunning(event.getGuild())){
+						Util.sendErrorReply(event, "The competition is already running!", "Stop it first", true);
+						return;
+					}
+					
 					guildConfigs.setValue(event.getGuild(), ConfigValues.COMPETITION_RUNNING, "true");
 		
 					Util.sendSelfDestructingReply(event,
 							"Starting the TAS Competition-Bot. `/participate` will be enabled and listening to DM's from participants", 20);
 					
 				} else if (event.getSubcommandName().equals("stop")) {
+					if(!isCompetitionRunning(event.getGuild())){
+						Util.sendErrorReply(event, "There is no competition running!", "So there is nothing to stop", true);
+						return;
+					}
+					
 					guildConfigs.setValue(event.getGuild(), ConfigValues.COMPETITION_RUNNING, "false");
 					
 					Util.sendSelfDestructingReply(event,
@@ -274,6 +298,29 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				} else if (commandPath.equals("forcesubmit/showall")) {
 					submissionHandler.sendSubmissionList(event);
 				}
+			}
+			// =========================== StartDM
+			else if (commandPath.startsWith("startdm")) {
+				
+				Guild guild = event.getGuild();
+				User dmUser = event.getOption("user").getAsUser();
+				String startMessage = event.getOption("startmessage").getAsString();
+				
+				ThreadChannel threadChannel = dmBridgeHandler.getThreadChannel(guild, dmUser);
+				if(threadChannel != null) {
+					Util.sendErrorReply(event, "A thread already exists", String.format("Use %s or close that thread", threadChannel.getAsMention()), true);
+					return;
+				}
+				
+				String channelID = guildConfigs.getValue(guild, ConfigValues.ORGANIZERCHANNEL);
+				if(channelID == null) {
+					Util.sendErrorReply(event, "Organizerchannel was not set", "Use `/setup` to set the channel", true);
+					return;
+				}
+				TextChannel organizerchannel = guild.getChannelById(TextChannel.class, channelID);
+				dmBridgeHandler.createDMBridge(guild, organizerchannel, dmUser, startMessage);
+				Util.sendDeletableDirectMessage(dmUser, new MessageCreateBuilder().setEmbeds(Util.constructEmbedWithAuthor(event.getUser(), "", startMessage, color).setFooter("Sent from "+guild.getName()).build()).build());
+				Util.sendReply(event, String.format("Created DMBridge for user %s in the channel %s", dmUser.getAsMention(), organizerchannel.getAsMention()), true);
 			}
 			// ================== ScheduleMessage Command
 			else if (commandPath.startsWith("schedulemessage")) {
@@ -348,6 +395,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			}
 		}catch (Exception e) {
 			Util.sendErrorReply(event, e, true);
+			e.printStackTrace();
 		}
 	}
 	
@@ -495,7 +543,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			else if (event.getChannelType() == ChannelType.PRIVATE) {
 				event.retrieveMessage().queue(msg -> {
 					if (Util.hasBotReactedWith(msg, reactionEmote.getFormatted())) {
-						privateMessageHandler.processPrivateReactions(msg, reactionEmote, event.getUser());
+						dmBridgeHandler.processPrivateReactions(msg, reactionEmote, event.getUser());
 					}
 				});
 			}
@@ -540,41 +588,26 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 
 					} else if (Pattern.matches("^!servers", msg)) {
 
-						privateMessageHandler.sendActiveCompetitions(event.getAuthor());
+						dmBridgeHandler.sendActiveCompetitions(event.getAuthor());
 
 					} else if (Pattern.matches("^!help", msg)) {
 						sendPrivateCommandHelp(event.getAuthor());
 					} else {
-						privateMessageHandler.setupReactions(message);
+						dmBridgeHandler.setupReactions(message);
 						
-						List<Guild> guilds = PrivateMessageHandler.getActiveParticipationGuilds(event.getAuthor());
-						if(guilds.size()>0 && Pattern.matches("^!submit (.+)", message.getContentRaw()) && !privateMessageHandler.hasSubmitted(event.getAuthor(), guilds)) {
-							Util.sendDeletableDirectMessage(event.getAuthor(), "*Tip:*\nTo send off the submission, react with "+privateMessageHandler.singleGuildEmoji.getAsReactionCode()+" to your message");
+						List<Guild> guilds = DMBridge.getActiveParticipationGuilds(event.getAuthor());
+						if(guilds.size()>0 && Pattern.matches("^!submit (.+)", message.getContentRaw()) && !dmBridgeHandler.hasSubmitted(event.getAuthor(), guilds)) {
+							Util.sendDeletableDirectMessage(event.getAuthor(), "*Tip:*\nTo send off the submission, react with "+dmBridgeHandler.singleGuildEmoji.getAsReactionCode()+" to your message");
 						}
 					}
 				}
 			});
 		}
-		else if (event.getChannel().getIdLong() == Long.parseLong(guildConfigs.getValue(event.getGuild(), ConfigValues.ORGANIZERCHANNEL))) {
-			event.getChannel().retrieveMessageById(event.getMessageId()).queue(message -> {
-
-				if (message.getType() == MessageType.INLINE_REPLY) {
-					if (!Util.isThisUserThisBot(message.getAuthor())) {
-						MessageReference replymessage = message.getMessageReference();
-
-						if (replymessage.getMessage().getEmbeds().size() != 0) {
-
-							String name = replymessage.getMessage().getEmbeds().get(0).getAuthor().getName();
-							User replyUser = event.getGuild().getMemberByTag(name).getUser();
-							MessageCreateBuilder newMessage = MessageCreateBuilder.fromMessage(message);
-							message.getAttachments().forEach(attachment -> {
-								newMessage.addContent(attachment.getUrl());
-							});
-							Util.sendDeletableDirectMessage(replyUser, newMessage.build());
-						}
-					}
-				}
-			});
+		else if (event.getChannel().getType() == ChannelType.GUILD_PUBLIC_THREAD) {
+			ThreadChannel threadChannel = event.getChannel().asThreadChannel();
+			if(threadChannel.getParentMessageChannel().getId().equals(guildConfigs.getValue(event.getGuild(), ConfigValues.ORGANIZERCHANNEL)) && !Util.isThisUserThisBot(event.getAuthor())) {
+				dmBridgeHandler.sendDM(event.getGuild(), threadChannel, event.getMessage());
+			}
 		}
 	}
 	
@@ -609,6 +642,20 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	public void onMessageDelete(MessageDeleteEvent event) {
 		if(event.isFromGuild()) {
 			scheduleMessageHandler.onDelete(event.getGuild(), event.getMessageIdLong());
+		}
+	}
+	
+	@Override
+	public void onChannelDelete(ChannelDeleteEvent event) {
+		if(event.getChannel().getType() == ChannelType.GUILD_PUBLIC_THREAD) {
+			dmBridgeHandler.removeThread(event.getGuild(), event.getChannel().asThreadChannel());
+		}
+	}
+	
+	@Override
+	public void onChannelUpdateArchived(ChannelUpdateArchivedEvent event) {
+		if(event.getChannel().getType() == ChannelType.GUILD_PUBLIC_THREAD) {
+			dmBridgeHandler.removeThread(event.getGuild(), event.getChannel().asThreadChannel());
 		}
 	}
 }
