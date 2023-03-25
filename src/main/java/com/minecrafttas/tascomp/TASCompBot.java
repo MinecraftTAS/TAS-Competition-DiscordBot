@@ -182,8 +182,6 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		
 		
 		// =========================== ScheduleMessage
-		CommandData scheduleMessageContext = Commands.message("Schedule message");
-		
 		CommandDataImpl scheduleMessageCommand = new CommandDataImpl("schedulemessage", "Schedules a message to be sent by the bot");
 		OptionData timestampOption = new OptionData(OptionType.STRING, "timestamp", "The timestamp when to schedule the message");
 		OptionData channelOption = new OptionData(OptionType.CHANNEL, "channel", "The channel where the message will be sent");
@@ -211,7 +209,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		CommandDataImpl testCommand = new CommandDataImpl("test", "Testing things");
 		testCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
-		updater.addCommands(tascompCommand, setupCommand, previewContext, getRuleCommand, setRuleContext, participateCommand, forcesubmitCommand, startDMCommand, scheduleMessageContext, scheduleMessageCommand, helpCommand, testCommand);
+		updater.addCommands(tascompCommand, setupCommand, previewContext, getRuleCommand, setRuleContext, participateCommand, forcesubmitCommand, startDMCommand, scheduleMessageCommand, helpCommand/*, testCommand*/);
 		updater.queue();
 		LOGGER.info("Done preparing commands!");
 	}
@@ -342,10 +340,11 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			// ================== Help Command
 			else if(commandPath.startsWith("help")) {
 				if(commandPath.equals("help/previewcommand")) {
-					String mdhelp = "```md\n"
+					String mdhelp = "Everything outside the md block will be parsed as a message and not as an embed!"
+							+ "```md\n"
 							+ "# Markdown to Embed\n"
 							+ "This system allows you to construct message embeds by the bot via a markdown message.\n"
-							+ "The command `/preview <messageId>` allows you to preview the embed before using it either via `/setrulemessage` or `/schedulemessage`.\n"
+							+ "Rightclicking a message -> Apps -> Preview embed, allows you to display the embed.\n"
 							+ "This help is sent via the command `/help previewcommand`\n"
 							+ "\n"
 							+ "This part of the embed is called the description and is used as the main thing for content.\n"
@@ -369,26 +368,37 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 							+ "-`Participate Channel`: Channel where people can type /participate to get the participate role. The bot will leave a message there to show that it worked.\n"
 							+ "\n"
 							+ "-`Participate Role`: The role for participants. Decides if they are allowed to DM the bot and submit\n"
-							+ "-`Organizer Role`: Currently unused ._.\n"
+							+ "-`Organizer Role`: A role not used by the bot, but useful for permissions -> See section 3\n"
 							+ "\n"
 							+ "## 2. Set the channels and roles to the config\n"
-							+ "Channels can be added with `/setchannel add <channeltype>` and removed with `/setchannel remove <channeltype>`\n"
-							+ "To view the current status, use `/setchannel list`\n"
-							+ "\n"
-							+ "Roles can be added with `/setroles add <roletype>` and work the same way as channels\n"
+							+ "Executing the command `/setup` will give you 4 dropdowns, where you can set the channels and the roles, or disable all of them\n"
 							+ "## 3. Setup permissions in integration settings\n"
-							+ "Due to slash commands being relatively new, you can't set permissions programmatically and have to manually add them in the server settings ._.\n"
-							+ "You can restrict the `/participate` command to the participate channel, so that it can be used by everyone in only that channel\n"
+							+ "Due to slash commands being relatively new, you can't set permissions programmatically and have to manually add them in the server settings.\n"
+							+ "All commands are disabled by default to everyone.\n"
+							+ "Suggested command permissions:"
+							+ "*Everyone:* participate\n"
+							+ "*Organizers:* tascompetition, startdm, schedulemessage, preview embed, forcesubmit, help\n"
+							+ "*Admins:*: setup, setrulemessage, getrulemessage\n"
+							+ "\n"
+							+ "*Participate Channel:* participate\n"
+							+ "*Submission Channel:* forcesubmit\n"
+							+ "*Organizerchannel:* tascompetition, startdm, schedulemessage, setup (set rule message)\n"
+							+ "The following commands send a private response only to you:\n"
+							+ "preview embed, getrulemessage, help\n"
 							+ "## 4. Set the rule message\n"
-							+ "When a user runs `/participate` the bot will dm them with the rules and a captcha which they have to solve to be granted with the participate role.\n"
-							+ "You have to set these rules by first writing a markdown message, then copying the message id and use /setrulemessage <messageid> to set it.\n"
+							+ "When a user runs `/participate` the bot will dm users with the rules and a captcha which they have to solve to be granted with the participate role.\n"
+							+ "You have to set these rules by first writing a markdown message, rightclicking it -> Apps -> Set rule message to set it.\n"
+							+ "You can retrieve the current rule message by executing `/getrulemessage`\n"
 							+ "Further instructions on how to write markdown messages are in `/help previewcommand`\n"
 							+ "## 5. Start the TAS Competition\n"
 							+ "Use `/tascompetition start` to start the competition\n"
 							+ "Users can head to the participate channel and type /participate. The bot will DM them with the rules and a captcha which they have to solve to be granted with the participate role\n"
 							+ "Once that is done, users can send the bot DM's which will get forwarded to the organizerchannel. Organizers can reply to the bot messages to answer in DM's\n"
 							+ "Users can submit with !submit <message> to add a submission to the submission channel\n"
+							+ "\n"
+							+ "Use `/help commands` to see all commands\n"
 							+ "```";
+					System.out.println(setuphelp.length());
 					MessageCreateData msg1=new MessageCreateBuilder().setEmbeds(MD2Embed.parseEmbed(setuphelp, color).build()).build();
 					Util.sendReply(event, msg1, true);
 				}
@@ -612,7 +622,6 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	}
 	
 	private void sendPrivateCommandHelp(User user) {
-		// TODO Update help
 		LOGGER.info("Sending private help to "+ user.getName());
 		EmbedBuilder builder = new EmbedBuilder();
 		builder.setTitle("Help/Commands");

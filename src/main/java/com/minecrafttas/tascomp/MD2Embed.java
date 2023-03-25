@@ -87,7 +87,7 @@ public class MD2Embed {
 		return builder;
 	}
 	
-	
+	//TODO split messages
 	public static MessageCreateBuilder parseMessage(Message message, int color) throws Exception {
 		String messageString = message.getContentRaw();
 		
