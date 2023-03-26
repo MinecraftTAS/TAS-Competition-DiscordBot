@@ -1,20 +1,16 @@
 package com.minecrafttas.tascomp;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.InvalidPropertiesFormatException;
 import java.util.Properties;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import org.slf4j.Logger;
 
+import com.minecrafttas.tascomp.util.Storable;
 import com.minecrafttas.tascomp.util.Util;
 
 import net.dv8tion.jda.api.entities.Guild;
@@ -24,71 +20,35 @@ import net.dv8tion.jda.api.utils.TimeFormat;
 import net.dv8tion.jda.api.utils.Timestamp;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 
-public class ScheduleMessageHandler {
+public class ScheduleMessageHandler extends Storable{
 
 	private Logger LOGGER;
 
-	private HashMap<Long, Properties> scheduledMessages = new HashMap<>();
-
 	private final HashMap<Long, TimerTask> timerTasks = new HashMap<>();
-
-	private File scheduledDir = new File("scheduled/");
 
 	private static Timer timer = new Timer("Schedule Message Timer");
 
 	public ScheduleMessageHandler(Logger logger) {
+		super("Scheduled Messages", new File("scheduled/"), logger);
 		LOGGER = logger;
-		if (!scheduledDir.exists()) {
-			scheduledDir.mkdir();
-		}
 	}
 
-	public void loadScheduledMessagesForGuild(Guild guild) {
+	@Override
+	public void loadForGuild(Guild guild) {
 		Properties prop = new Properties();
 
-		File submissionFile = new File(scheduledDir, guild.getId() + ".xml");
+		File submissionFile = new File(storageDir, guild.getId() + ".xml");
 		if (submissionFile.exists()) {
-			prop = loadScheduledMessages(guild, submissionFile);
+			prop = load(guild, submissionFile);
 			
 			Properties tempProp = (Properties) prop.clone();
 			
-			scheduledMessages.put(guild.getIdLong(), prop);
+			guildProperties.put(guild.getIdLong(), prop);
 			tempProp.forEach((target, fileString) -> {
 				long targetId = Long.parseLong((String) target);
 				scheduleMessage(guild, (String) fileString, targetId);
 			});
-			saveScheduledMessages(guild, prop);
-		}
-	}
-
-	private Properties loadScheduledMessages(Guild guild, File submissionFile) {
-		LOGGER.info("Loading scheduled messages for guild {}...", guild.getName());
-		Properties guildConfig = new Properties();
-		try {
-			FileInputStream fis = new FileInputStream(submissionFile);
-			guildConfig.loadFromXML(fis);
-			fis.close();
-		} catch (InvalidPropertiesFormatException e) {
-			e.printStackTrace();
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return guildConfig;
-	}
-
-	public void saveScheduledMessages(Guild guild, Properties scheduledMessage) {
-
-		LOGGER.info("Saving scheduled messages for guild {}...", guild.getName());
-		File scheduleMessageConfig = new File(scheduledDir, guild.getId() + ".xml");
-
-		try {
-			FileOutputStream fos = new FileOutputStream(scheduleMessageConfig);
-			scheduledMessage.storeToXML(fos, "Scheduled Messages for guild: " + guild.getName(), "UTF-8");
-			fos.close();
-		} catch (IOException e) {
-			e.printStackTrace();
+			save(guild, prop);
 		}
 	}
 
@@ -100,7 +60,7 @@ public class ScheduleMessageHandler {
 			Date date = new Date(timestampTarget.getTimestamp());
 
 			if (date.compareTo(Date.from(Instant.now())) < 0) {
-				LOGGER.warn("Tried to add scheduled message but the scheduled time is already over: {}", date.toString());
+				LOGGER.warn("{{}} Tried to add scheduled message but the scheduled time is already over: {}", guild.getName(), date.toString());
 				Util.sendSelfDestructingMessage(sourceChannel, "Can't add a scheduled message. The timestamp lies in the past!", 10);
 				return;
 			}
@@ -119,7 +79,7 @@ public class ScheduleMessageHandler {
 					temporaryHashmap.forEach((msgId, task) -> {
 						if (task.equals(this)) {
 							timerTasks.remove(msgId);
-							scheduledMessages.remove(msgId);
+							guildProperties.remove(msgId);
 							removeFromProperties(guild, msgId);
 						}
 					});
@@ -143,13 +103,13 @@ public class ScheduleMessageHandler {
 			sourceChannel.sendMessage(previewMessageBuilder.build()).queue(msg2 -> {
 
 				long guildID = msg2.getGuild().getIdLong();
-				Properties guildMsgs = scheduledMessages.containsKey(guildID) ? scheduledMessages.get(guildID) : new Properties();
+				Properties guildMsgs = guildProperties.containsKey(guildID) ? guildProperties.get(guildID) : new Properties();
 
 				String fileString = timestampString + "|" + targetChannel.getId() + "|" + messageRaw;
 
 				guildMsgs.put(msg2.getId(), fileString);
-				scheduledMessages.put(guildID, guildMsgs);
-				saveScheduledMessages(msg2.getGuild(), guildMsgs);
+				guildProperties.put(guildID, guildMsgs);
+				save(msg2.getGuild(), guildMsgs);
 
 				timerTasks.put(msg2.getIdLong(), task);
 			});
@@ -167,13 +127,13 @@ public class ScheduleMessageHandler {
 		Date date = new Date(timestampTarget.getTimestamp());
 
 		if (date.compareTo(Date.from(Instant.now())) < 0) {
-			LOGGER.warn("Tried to readded {} to the timer list but the scheduled time is already over: {}", targetMsgId, date.toString());
-			Properties prop = scheduledMessages.get(guild.getIdLong());
+			LOGGER.warn("{{}} Tried to readded {} to the timer list but the scheduled time is already over: {}", guild.getName(), targetMsgId, date.toString());
+			Properties prop = guildProperties.get(guild.getIdLong());
 			prop.remove(Long.toString(targetMsgId));
 			return;
 		}
 
-		LOGGER.info("Readded {} to the timer list which is scheduled to be sent at {}", targetMsgId, date.toString());
+		LOGGER.info("{{}} Readded {} to the timer list which is scheduled to be sent at {}", guild.getName(), targetMsgId, date.toString());
 
 		MessageChannel targetChannel = (MessageChannel) guild.getGuildChannelById(targetChannelId);
 
@@ -191,7 +151,7 @@ public class ScheduleMessageHandler {
 				temporaryHashmap.forEach((msgId, task) -> {
 					if (task.equals(this)) {
 						timerTasks.remove(msgId);
-						scheduledMessages.remove(msgId);
+						guildProperties.remove(msgId);
 						removeFromProperties(guild, targetMsgId);
 					}
 				});
@@ -204,7 +164,7 @@ public class ScheduleMessageHandler {
 
 	public void onDelete(Guild guild, long msgId) {
 		if (timerTasks.containsKey(msgId)) {
-			LOGGER.info("Removing scheduled message {}", msgId);
+			LOGGER.info("{{}} Removing scheduled message {}", guild.getName(), msgId);
 			timerTasks.get(msgId).cancel();
 			timerTasks.remove(msgId);
 			removeFromProperties(guild, msgId);
@@ -212,8 +172,8 @@ public class ScheduleMessageHandler {
 	}
 	
 	private void removeFromProperties(Guild guild, long msgId) {
-		Properties prop = scheduledMessages.get(guild.getIdLong());
+		Properties prop = guildProperties.get(guild.getIdLong());
 		prop.remove(Long.toString(msgId));
-		saveScheduledMessages(guild, prop);
+		save(guild, prop);
 	}
 }

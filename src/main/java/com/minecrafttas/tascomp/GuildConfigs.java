@@ -91,7 +91,7 @@ public class GuildConfigs {
 		if (configFile.exists()) {
 			guildConfig = loadConfig(guild, configFile);
 		} else {
-			LOGGER.info("Creating default config...");
+			LOGGER.info("{{}} Creating default config...", guild.getName());
 			saveConfig(guild, guildConfig);
 		}
 		guildConfigs.put(guild.getIdLong(), guildConfig);
@@ -103,7 +103,7 @@ public class GuildConfigs {
 	
 	public void saveConfig(Guild guild, Properties config) {
 		
-		LOGGER.info("Saving config for guild {}...", guild.getName());
+		LOGGER.info("{{}} Saving config", guild.getName());
 		File configFile = new File(configDir, guild.getId() + ".xml");
 
 		try {
@@ -120,7 +120,7 @@ public class GuildConfigs {
 	}
 	
 	public Properties loadConfig(Guild guild, File configFile) {
-		LOGGER.info("Loading config for guild {}...", guild.getName());
+		LOGGER.info("{{}} Loading config", guild.getName());
 		Properties guildConfig = new Properties();
 		try {
 			FileInputStream fis = new FileInputStream(configFile);

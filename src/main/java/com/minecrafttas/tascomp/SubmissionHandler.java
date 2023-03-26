@@ -1,13 +1,7 @@
 package com.minecrafttas.tascomp;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.InvalidPropertiesFormatException;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
@@ -15,6 +9,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 
 import com.minecrafttas.tascomp.GuildConfigs.ConfigValues;
+import com.minecrafttas.tascomp.util.Storable;
 import com.minecrafttas.tascomp.util.Util;
 
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -28,44 +23,13 @@ import net.dv8tion.jda.api.events.interaction.command.GenericCommandInteractionE
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 
-public class SubmissionHandler {
+public class SubmissionHandler extends Storable {
 
 	private Logger LOGGER;
-	private final HashMap<Long, Properties> guildSubmissions = new HashMap<>();
-	private final File submissionDir = new File("submissions/");
 
 	public SubmissionHandler(Logger logger) {
+		super("submissions", new File("submissions/"), logger);
 		this.LOGGER = logger;
-		if (!submissionDir.exists()) {
-			submissionDir.mkdir();
-		}
-	}
-
-	public void loadSubmissionsForGuild(Guild guild) {
-		Properties prop = new Properties();
-
-		File submissionFile = new File(submissionDir, guild.getId() + ".xml");
-		if (submissionFile.exists()) {
-			prop = loadSubmissions(guild, submissionFile);
-			guildSubmissions.put(guild.getIdLong(), prop);
-		}
-	}
-
-	private Properties loadSubmissions(Guild guild, File submissionFile) {
-		LOGGER.info("Loading submissions for guild {}...", guild.getName());
-		Properties guildConfig = new Properties();
-		try {
-			FileInputStream fis = new FileInputStream(submissionFile);
-			guildConfig.loadFromXML(fis);
-			fis.close();
-		} catch (InvalidPropertiesFormatException e) {
-			e.printStackTrace();
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return guildConfig;
 	}
 
 	public void submit(Guild guild, User author, Message submitMessage, String raw) {
@@ -87,7 +51,7 @@ public class SubmissionHandler {
 
 		long guildID = guild.getIdLong();
 
-		String authorTag = author.getAsTag();
+		String authorId = author.getId();
 
 		GuildConfigs config = TASCompBot.getBot().getGuildConfigs();
 
@@ -98,12 +62,12 @@ public class SubmissionHandler {
 		}
 		submitChannel = (MessageChannel) guild.getGuildChannelById(submitChannelID);
 
-		Properties guildSubmission = guildSubmissions.containsKey(guildID) ? guildSubmissions.get(guildID) : new Properties();
+		Properties guildSubmission = guildProperties.containsKey(guildID) ? guildProperties.get(guildID) : new Properties();
 
-		boolean flag = guildSubmission.containsKey(authorTag);
+		boolean flag = guildSubmission.containsKey(authorId);
 
 		if (flag) {
-			String submission = guildSubmission.getProperty(authorTag);
+			String submission = guildSubmission.getProperty(authorId);
 			String messageID = submission.split(";", 2)[0];
 			try {
 				submitChannel.retrieveMessageById(messageID).queue(msg -> {
@@ -124,10 +88,10 @@ public class SubmissionHandler {
 		submitChannel.sendMessage(submission2).queue(msg -> {
 			String value = msg.getIdLong() + ";" + raw;
 
-			guildSubmission.put(authorTag, value);
-			saveSubmission(guild, guildSubmission);
+			guildSubmission.put(authorId, value);
+			save(guild, guildSubmission);
 
-			guildSubmissions.put(guild.getIdLong(), guildSubmission);
+			guildProperties.put(guild.getIdLong(), guildSubmission);
 
 			String replyText = flag ? "Your submission was updated!" : "Your submission was saved!";
 
@@ -137,35 +101,18 @@ public class SubmissionHandler {
 		});
 	}
 
-	private void saveSubmission(Guild guild, Properties submission) {
-
-		LOGGER.info("Saving submissions for guild {}...", guild.getName());
-		File submissionFile = new File(submissionDir, guild.getId() + ".xml");
-
-		try {
-			FileOutputStream fos = new FileOutputStream(submissionFile);
-			submission.storeToXML(fos, "Guild submissions for guild: " + guild.getName(), "UTF-8");
-			fos.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-
 	public void clearSubmission(GenericCommandInteractionEvent event, User author) {
-		Properties guildSubmission = guildSubmissions.get(event.getGuild().getIdLong());
-		guildSubmission.remove(author.getAsTag());
-		saveSubmission(event.getGuild(), guildSubmission);
+		Properties guildSubmission = guildProperties.get(event.getGuild().getIdLong());
+		guildSubmission.remove(author.getId());
+		save(event.getGuild(), guildSubmission);
 		Util.sendDeletableReply(event, "Cleared submission of " + author.getAsTag());
 	}
 
 	public void clearAllSubmissions(GenericCommandInteractionEvent event) {
 		Guild guild = event.getGuild();
-		File submissionFile = new File(submissionDir, guild.getId() + ".xml");
-		if (submissionFile.exists()) {
-			submissionFile.delete();
-		}
-		if (guildSubmissions.get(guild.getIdLong()) != null) {
-			guildSubmissions.remove(guild.getIdLong());
+		remove(guild);
+		if (guildProperties.get(guild.getIdLong()) != null) {
+			guildProperties.remove(guild.getIdLong());
 		} else {
 			Util.sendDeletableReply(event, "Nothing to clear!");
 			return;
@@ -175,12 +122,17 @@ public class SubmissionHandler {
 
 	public void sendSubmissionList(GenericCommandInteractionEvent event) {
 		Guild guild = event.getGuild();
-		if (guildSubmissions.get(guild.getIdLong()) == null) {
+		if (guildProperties.get(guild.getIdLong()) == null) {
 			Util.sendDeletableReply(event, "Submission list is empty!");
 			return;
 		}
 		
 		List<MessageEmbed> embeds = getSubmissionList(guild);
+		if (embeds.isEmpty()) {
+			Util.sendDeletableReply(event, "Submission list is empty!");
+			return;
+		}
+		
 		for(MessageEmbed embed: embeds) {
 			MessageCreateBuilder builder = new MessageCreateBuilder().setEmbeds(embed);
 			Util.sendDeletableReply(event, builder.build());
@@ -188,7 +140,7 @@ public class SubmissionHandler {
 	}
 
 	private List<MessageEmbed> getSubmissionList(Guild guild) {
-		Properties submission = guildSubmissions.get(guild.getIdLong());
+		Properties submission = guildProperties.get(guild.getIdLong());
 		EmbedBuilder builder = new EmbedBuilder();
 		builder.setTitle("All submissions!");
 		int color = 0x00EAFF;
@@ -218,10 +170,10 @@ public class SubmissionHandler {
 	}
 
 	public boolean hasSubmitted(User author, Guild guild) {
-		Properties guildSubmission = guildSubmissions.get(guild.getIdLong());
+		Properties guildSubmission = guildProperties.get(guild.getIdLong());
 		if(guildSubmission==null) {
 			return false;
 		}
-		return guildSubmission.containsKey((Object)author.getAsTag());
+		return guildSubmission.containsKey((Object)author.getId());
 	}
 }

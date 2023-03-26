@@ -20,6 +20,7 @@ configs/
 submissions/
 scheduled/
 dmbridge/
+blacklist/
 
 # JDA stuff
 dv8tion/

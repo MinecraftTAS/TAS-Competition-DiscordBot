@@ -1,13 +1,8 @@
 package com.minecrafttas.tascomp;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.InvalidPropertiesFormatException;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
@@ -15,6 +10,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 
 import com.minecrafttas.tascomp.GuildConfigs.ConfigValues;
+import com.minecrafttas.tascomp.util.Storable;
 import com.minecrafttas.tascomp.util.Util;
 import com.vdurmont.emoji.EmojiManager;
 
@@ -32,7 +28,7 @@ import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 
-public class DMBridge {
+public class DMBridge extends Storable{
 	
 	private static Logger LOGGER;
 	
@@ -44,24 +40,21 @@ public class DMBridge {
 	
 	private List<String> multiParticipationWarning = new ArrayList<>();
 	
-	private File dmBridgeDir = new File("dmbridge/");
-	
 	private HashMap<Long, Properties> dmBridgeChannels = new HashMap<>();
 	
 	public DMBridge(Logger logger, SubmissionHandler submissionHandler, GuildConfigs guildConfigs) {
+		super("DMBridge", new File("dmbridge/"), logger);
 		LOGGER=logger;
 		LOGGER.info("Preparing private message handler...");
 		this.submissionHandler=submissionHandler;
 		this.guildConfigs=guildConfigs;
-		if(!dmBridgeDir.exists()) {
-			dmBridgeDir.mkdir();
-		}
 	}
 	
-	public void loadDMBridgesForGuild(Guild guild) {
-		File bridgeFile = new File(dmBridgeDir, guild.getId() + ".xml");
+	@Override
+	public void loadForGuild(Guild guild) {
+		File bridgeFile = new File(storageDir, guild.getId() + ".xml");
 		if(bridgeFile.exists()) {
-			Properties prop = loadDMBridge(guild, bridgeFile);
+			Properties prop = load(guild, bridgeFile);
 			
 			Properties tempProp = (Properties) prop.clone();
 			
@@ -73,39 +66,8 @@ public class DMBridge {
 				}
 			});
 			dmBridgeChannels.put(guild.getIdLong(), prop);
-			saveDMBridges(guild, prop);
+			save(guild, prop);
 		}
-	}
-	
-	public void saveDMBridges(Guild guild, Properties dmBridges) {
-
-		LOGGER.info("Saving DMBridge channels for guild {}...", guild.getName());
-		File scheduleMessageConfig = new File(dmBridgeDir, guild.getId() + ".xml");
-
-		try {
-			FileOutputStream fos = new FileOutputStream(scheduleMessageConfig);
-			dmBridges.storeToXML(fos, "DMBridge users and thread channels for guild: " + guild.getName(), "UTF-8");
-			fos.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-	
-	public Properties loadDMBridge(Guild guild, File bridgeFile) {
-		LOGGER.info("Loading DM Bridge channels for guild {}...", guild.getName());
-		Properties guildConfig = new Properties();
-		try {
-			FileInputStream fis = new FileInputStream(bridgeFile);
-			guildConfig.loadFromXML(fis);
-			fis.close();
-		} catch (InvalidPropertiesFormatException e) {
-			e.printStackTrace();
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return guildConfig;
 	}
 	
 	public void setupReactions(Message message) {
@@ -200,9 +162,9 @@ public class DMBridge {
 				
 				Properties prop = dmBridgeChannels.containsKey(guild.getIdLong()) ? dmBridgeChannels.get(guild.getIdLong()) : new Properties();
 				
-				prop.put(threadchannel.getId(), dmUser.getAsTag());
+				prop.put(threadchannel.getId(), dmUser.getId());
 				dmBridgeChannels.put(guild.getIdLong(), prop);
-				saveDMBridges(guild, prop);
+				save(guild, prop);
 				Util.sendMessage(threadchannel, initialMessage);
 			});
 		}
@@ -394,7 +356,7 @@ public class DMBridge {
 		
 		for(Object key : keySet) {
 			String userValue = prop.getProperty((String) key);
-			if(user.getAsTag().equals(userValue)) {
+			if(user.getId().equals(userValue)) {
 				return guild.getThreadChannelById((String)key);
 			}
 		}
@@ -411,15 +373,15 @@ public class DMBridge {
 		
 		String userTag = (String) prop.get(threadChannelId);
 		
-		return guild.getMemberByTag(userTag).getUser();
+		return guild.getMemberById(userTag).getUser();
 	}
 
 	public void removeThread(Guild guild, ThreadChannel channel) {
 		Properties prop = dmBridgeChannels.get(guild.getIdLong());
 		if(prop==null) return;
-		LOGGER.info("Removing {} from DMBridge", channel.getAsMention());
+		LOGGER.info("{{}} Removing {} from DMBridge", guild.getName(), channel.getName());
 		prop.remove(channel.getId());
-		saveDMBridges(guild, prop);
+		save(guild, prop);
 	}
 
 	public void sendDM(Guild guild, ThreadChannel threadChannel, Message msg) {
@@ -435,7 +397,7 @@ public class DMBridge {
 			return;
 		}
 		User user = getUser(guild, threadChannel.getId());
-		LOGGER.info("Sending dmbridge to {}", user.getAsTag());
+		LOGGER.info("{{}} Sending dmbridge to {}", guild.getName(), user.getAsTag());
 		Util.sendDeletableDirectMessage(user, msg);
 	}
 	

@@ -32,6 +32,7 @@ import net.dv8tion.jda.api.events.channel.update.ChannelUpdateArchivedEvent;
 import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.api.events.interaction.command.MessageContextInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.command.UserContextInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.EntitySelectInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageDeleteEvent;
@@ -61,7 +62,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	private final Properties configuration;
 	private final GuildConfigs guildConfigs;
 	private final SubmissionHandler submissionHandler;
-	private final ParticipateOffer offer;
+	private final ParticipateOffer offerHandler;
 	private final DMBridge dmBridgeHandler;
 	private final ScheduleMessageHandler scheduleMessageHandler;
 	private static final Logger LOGGER = LoggerFactory.getLogger("TAS Competition");
@@ -76,7 +77,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
                 .addEventListeners(this);
 		this.guildConfigs = new GuildConfigs(LOGGER);
 		this.submissionHandler = new SubmissionHandler(LOGGER);
-		this.offer = new ParticipateOffer(guildConfigs);
+		this.offerHandler = new ParticipateOffer(guildConfigs, LOGGER);
 		this.dmBridgeHandler = new DMBridge(LOGGER, submissionHandler, guildConfigs);
 		this.scheduleMessageHandler = new ScheduleMessageHandler(LOGGER);
 		this.jda = builder.build();
@@ -97,24 +98,25 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	
 	@Override
 	public void onGuildJoin(GuildJoinEvent event) {
-		LOGGER.info("Bot joined new guild {}.", event.getGuild().getName());
+		LOGGER.info("{{}} Bot joined new guild", event.getGuild().getName());
 		prepareGuild(event.getGuild());
 	}
 
 	private void prepareGuild(Guild guild) {
-		LOGGER.info("Preparing guild {}...", guild.getName());
+		LOGGER.info("{{}} Preparing guild", guild.getName());
 		guild.loadMembers();
 		prepareCommands(guild);
 		guildConfigs.prepareConfig(guild);
-		submissionHandler.loadSubmissionsForGuild(guild);
-		scheduleMessageHandler.loadScheduledMessagesForGuild(guild);
-		dmBridgeHandler.loadDMBridgesForGuild(guild);
+		submissionHandler.loadForGuild(guild);
+		offerHandler.loadForGuild(guild);
+		scheduleMessageHandler.loadForGuild(guild);
+		dmBridgeHandler.loadForGuild(guild);
 
-		LOGGER.info("Done preparing guild {}!", guild.getName());
+		LOGGER.info("{{}} Done preparing guild!", guild.getName());
 	}
 
 	private void prepareCommands(Guild guild) {
-		LOGGER.info("Preparing commands...");
+		LOGGER.info("{{}} Preparing commands", guild.getName());
 		CommandListUpdateAction updater = guild.updateCommands();
 		
 		/*Important! The subcommands name(e.g. organizerchannel, participaterole) are made so it matches (ignoring capitalization) 
@@ -152,6 +154,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		participateCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
 		// =========================== Forcesubmit
+		
 		CommandDataImpl forcesubmitCommand = new CommandDataImpl("forcesubmit", "Controls submissions");
 		forcesubmitCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 
@@ -173,6 +176,8 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		// =========================== StartDM
 		
 		CommandDataImpl startDMCommand = new CommandDataImpl("startdm", "Starts a DM through the bot");
+		startDMCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
+		
 		OptionData userOption2 = new OptionData(OptionType.USER, "user", "The user to send this dm to");
 		OptionData startingMessage = new OptionData(OptionType.STRING, "startmessage", "The message to start the DM with");
 		userOption2.setRequired(true);
@@ -180,6 +185,23 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		
 		startDMCommand.addOptions(userOption2, startingMessage);
 		
+		// =========================== Blacklist
+		
+		CommandData blacklistAddContext = Commands.user("Add to blacklist");
+		CommandData blacklistRemoveContext = Commands.user("Remove from blacklist");
+		
+		CommandDataImpl blacklistCommand = new CommandDataImpl("blacklist", "Blacklists users from using /participate");
+		
+		SubcommandData addSubCommand = new SubcommandData("add", "Adds a user to the blacklist");
+		SubcommandData removeSubCommand = new SubcommandData("remove", "Removes a user from the blacklist");
+		SubcommandData clearSubCommand = new SubcommandData("clear", "Clears the blacklist");
+		
+		OptionData userOption3 = new OptionData(OptionType.USER, "user", "User to blacklist");
+		userOption3.setRequired(true);
+		addSubCommand.addOptions(userOption3);
+		removeSubCommand.addOptions(userOption3);
+		
+		blacklistCommand.addSubcommands(addSubCommand, removeSubCommand, clearSubCommand);
 		
 		// =========================== ScheduleMessage
 		CommandDataImpl scheduleMessageCommand = new CommandDataImpl("schedulemessage", "Schedules a message to be sent by the bot");
@@ -202,16 +224,17 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		
 		SubcommandData previewHelpSubCommand = new SubcommandData("previewcommand", "Send the preview command help");
 		SubcommandData setupHelpSubCommand = new SubcommandData("setup", "A checklist for setting up this bot");
+		SubcommandData commandHelpSubCommand = new SubcommandData("commands", "All commands this bot has to offer");
 		
-		helpCommand.addSubcommands(previewHelpSubCommand, setupHelpSubCommand);
+		helpCommand.addSubcommands(previewHelpSubCommand, setupHelpSubCommand, commandHelpSubCommand);
 		
 		// =========================== Test
 		CommandDataImpl testCommand = new CommandDataImpl("test", "Testing things");
 		testCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
 		
-		updater.addCommands(tascompCommand, setupCommand, previewContext, getRuleCommand, setRuleContext, participateCommand, forcesubmitCommand, startDMCommand, scheduleMessageCommand, helpCommand/*, testCommand*/);
+		updater.addCommands(tascompCommand, setupCommand, previewContext, getRuleCommand, setRuleContext, participateCommand, forcesubmitCommand, startDMCommand, blacklistAddContext, blacklistRemoveContext, blacklistCommand, scheduleMessageCommand, helpCommand/*, testCommand*/);
 		updater.queue();
-		LOGGER.info("Done preparing commands!");
+		LOGGER.info("{{}} Done preparing commands!", guild.getName());
 	}
 	
 	private boolean shouldExecuteParticipate(Guild guild) {
@@ -223,29 +246,30 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 
 	@Override
 	public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
-		LOGGER.info("{}: Running slash command {} in {}", event.getUser().getAsTag(), event.getFullCommandName(), event.getGuild().getName());
+		LOGGER.info("{{}} {}: Running slash command {}", event.getGuild().getName(), event.getUser().getAsTag(), event.getFullCommandName());
 		String commandPath = event.getFullCommandName().replace(" ", "/");
+		Guild guild = event.getGuild();
 		try {
 			// ================== TAS Competition Command
 			if(commandPath.startsWith("tascompetition/")) {
 				if (event.getSubcommandName().equals("start")) {
-					if(isCompetitionRunning(event.getGuild())){
+					if(isCompetitionRunning(guild)){
 						Util.sendErrorReply(event, "The competition is already running!", "Stop it first", true);
 						return;
 					}
 					
-					guildConfigs.setValue(event.getGuild(), ConfigValues.COMPETITION_RUNNING, "true");
+					guildConfigs.setValue(guild, ConfigValues.COMPETITION_RUNNING, "true");
 		
 					Util.sendSelfDestructingReply(event,
 							"Starting the TAS Competition-Bot. `/participate` will be enabled and listening to DM's from participants", 20);
 					
 				} else if (event.getSubcommandName().equals("stop")) {
-					if(!isCompetitionRunning(event.getGuild())){
+					if(!isCompetitionRunning(guild)){
 						Util.sendErrorReply(event, "There is no competition running!", "So there is nothing to stop", true);
 						return;
 					}
 					
-					guildConfigs.setValue(event.getGuild(), ConfigValues.COMPETITION_RUNNING, "false");
+					guildConfigs.setValue(guild, ConfigValues.COMPETITION_RUNNING, "false");
 					
 					Util.sendSelfDestructingReply(event,
 							"Stopping the TAS Competition-Bot. Disabeling `/participate` and stop listening to DM's from participants", 20);
@@ -254,7 +278,6 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			
 			// ================== Setup
 			else if (commandPath.startsWith("setup")) {
-				Guild guild = event.getGuild();
 				
 				event.reply(Util.constructEmbedMessage("Setup:", getSetup(guild), color))
 				.addActionRow(EntitySelectMenu.create("participatechannelselect", SelectTarget.CHANNEL).build())
@@ -266,14 +289,30 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			}
 			// ================== getrulemessage Command
 			else if(commandPath.startsWith("getrulemessage")) {
-				Util.sendReply(event, guildConfigs.getValue(event.getGuild(), ConfigValues.RULEMSG), true);
+				Util.sendReply(event, guildConfigs.getValue(guild, ConfigValues.RULEMSG), true);
 			}
 			// ================== Participate Command
 			else if (commandPath.equals("participate")) {
-				if (shouldExecuteParticipate(event.getGuild())) {
-					if (offer != null) {
-						if (!RoleWrapper.doesMemberHaveRole(event.getMember(), guildConfigs.getValue(event.getGuild(), ConfigValues.PARTICIPATEROLE))) {
-							offer.startOffer(event.getGuild(), event.getUser());
+				
+				User user = event.getMember().getUser();
+				
+				if (shouldExecuteParticipate(guild)) {
+					if (offerHandler != null) {
+						if (!RoleWrapper.doesMemberHaveRole(event.getMember(), guildConfigs.getValue(guild, ConfigValues.PARTICIPATEROLE))) {
+							
+							if(offerHandler.isOnBlacklist(guild, user)) {
+								LOGGER.info("{{}} Tried to offer to {} but the user is on the blacklist", guild.getName(), user.getName());
+								Util.sendReply(event, "You can not participate currently!", true);
+								return;
+							}
+							
+							if(offerHandler.isOffering(user)) {
+								LOGGER.info("{{}} Tried to offer to {} but the user is already offering", guild.getName(), user.getName());
+								Util.sendReply(event, "You already have a request active!", true);
+								return;
+							}
+							
+							offerHandler.startOffer(guild, user);
 							Util.sendReply(event, "Check your DMs to participate!", true);
 						} else {
 							Util.sendErrorReply(event, "You are already participating!", "", true);
@@ -288,9 +327,12 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			// ================== Forcesubmit Command
 			else if (commandPath.startsWith("forcesubmit")) {
 				if (commandPath.equals("forcesubmit/add")) {
-					submissionHandler.submit(event.getGuild(), event.getOption("user").getAsUser(), event.getOption("submission").getAsString());
+					User user = event.getOption("user").getAsUser();
+					submissionHandler.submit(guild, user, event.getOption("submission").getAsString());
+					Util.sendReply(event, String.format("Added a new manual submission for %s", user.getAsMention()), true);
 				} else if (commandPath.equals("forcesubmit/clear")) {
-					submissionHandler.clearSubmission(event, event.getOption("user").getAsUser());
+					User user = event.getOption("user").getAsUser();
+					submissionHandler.clearSubmission(event, user);
 				} else if (commandPath.equals("forcesubmit/clearall")) {
 					submissionHandler.clearAllSubmissions(event);
 				} else if (commandPath.equals("forcesubmit/showall")) {
@@ -300,9 +342,13 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			// =========================== StartDM
 			else if (commandPath.startsWith("startdm")) {
 				
-				Guild guild = event.getGuild();
 				User dmUser = event.getOption("user").getAsUser();
 				String startMessage = event.getOption("startmessage").getAsString();
+				
+				if(!RoleWrapper.doesMemberHaveRole(guild.getMemberById(dmUser.getId()), guildConfigs.getValue(guild, ConfigValues.PARTICIPATEROLE))) {
+					Util.sendErrorReply(event, "The user does not participate currently", "Due to how the bot is set up, non-participants can not answer the bot, therefore making this a very one sided conversation...", true);
+					return;
+				}
 				
 				ThreadChannel threadChannel = dmBridgeHandler.getThreadChannel(guild, dmUser);
 				if(threadChannel != null) {
@@ -320,6 +366,20 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				Util.sendDeletableDirectMessage(dmUser, new MessageCreateBuilder().setEmbeds(Util.constructEmbedWithAuthor(event.getUser(), "", startMessage, color).setFooter("Sent from "+guild.getName()).build()).build());
 				Util.sendReply(event, String.format("Created DMBridge for user %s in the channel %s", dmUser.getAsMention(), organizerchannel.getAsMention()), true);
 			}
+			// =========================== Blacklist
+			else if(commandPath.startsWith("blacklist")) {
+				if(commandPath.equals("blacklist/add")) {
+					User userToBlacklist = event.getOption("user").getAsUser();
+					offerHandler.addToBlacklist(event, userToBlacklist);
+				}
+				else if(commandPath.equals("blacklist/remove")) {
+					User userToRemoveFromBlacklist = event.getOption("user").getAsUser();
+					offerHandler.removeFromBlacklist(event, userToRemoveFromBlacklist);
+				}
+				else if(commandPath.equals("blacklist/clear")) {
+					offerHandler.clearBlacklist(event);
+				}
+			}
 			// ================== ScheduleMessage Command
 			else if (commandPath.startsWith("schedulemessage")) {
 				String timestamp = event.getOption("timestamp").getAsString();
@@ -328,7 +388,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		
 				event.deferReply().queue(hook ->{
 					try {
-						scheduleMessageHandler.scheduleMessage(event.getGuild(), event.getChannel().asGuildMessageChannel(), event.getUser(), messageId, channel, timestamp);
+						scheduleMessageHandler.scheduleMessage(guild, event.getChannel().asGuildMessageChannel(), event.getUser(), messageId, channel, timestamp);
 					} catch (Exception e) {
 						Util.sendErrorMessage(event.getChannel(), e);
 						e.printStackTrace();
@@ -377,7 +437,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 							+ "All commands are disabled by default to everyone.\n"
 							+ "Suggested command permissions:"
 							+ "*Everyone:* participate\n"
-							+ "*Organizers:* tascompetition, startdm, schedulemessage, preview embed, forcesubmit, help\n"
+							+ "*Organizers:* tascompetition, startdm, schedulemessage, preview embed, forcesubmit, help, blacklist\n"
 							+ "*Admins:*: setup, setrulemessage, getrulemessage\n"
 							+ "\n"
 							+ "*Participate Channel:* participate\n"
@@ -396,10 +456,33 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 							+ "Once that is done, users can send the bot DM's which will get forwarded to the organizerchannel. Organizers can reply to the bot messages to answer in DM's\n"
 							+ "Users can submit with !submit <message> to add a submission to the submission channel\n"
 							+ "\n"
-							+ "Use `/help commands` to see all commands\n"
 							+ "```";
-					System.out.println(setuphelp.length());
 					MessageCreateData msg1=new MessageCreateBuilder().setEmbeds(MD2Embed.parseEmbed(setuphelp, color).build()).build();
+					Util.sendReply(event, msg1, true);
+				}
+				else if(commandPath.equals("help/commands")) {
+					String commandhelp = "```md\n"
+							+ "# Commands\n"
+							+ "A list of commands and their actions\n"
+							+ "## /tascompetition <start|stop>\n"
+							+ "Enables/disables /participate and DMBridge for participants\n"
+							+ "When stopping, participants can't create new threads to organizers, however already opened threads will still work\n"
+							+ "## /participate\n"
+							+ "All non-blacklisted users can run /participate. The bot will DM them the rules and ask the user to accept them by solving a captcha. This will grant users the participate role.\n"
+							+ "## /blacklist <add|remove|clear> <user>\n"
+							+ "Adds removes or clears users to/from the blacklist. Blacklisted users can no longer use /participate. To remove them from the tournament, simply remove the participate role.\n"
+							+ "## /setup\n"
+							+ "Opens a dialogue for setting channels and roles\n"
+							+ "## /forcesubmit <add|showall|clear|clearall>\n"
+							+ "Manipulates the submission list manually\n"
+							+ "## /startdm <user> <startmsg>\n"
+							+ "Starts a thread in the organizerchannel that sends a dm to the specified participant\n"
+							+ "## /schedulemessage <messageid> <timestamp> <channel>\n"
+							+ "Schedules a message via messageid to be sent in a specified channel at a certain timestamp. Timestamps can be generated with https://r.3v.fi/discord-timestamps/\n"
+							+ "## /help\n"
+							+ "Shows this help\n"
+							+ "```";
+					MessageCreateData msg1=new MessageCreateBuilder().setEmbeds(MD2Embed.parseEmbed(commandhelp, color).build()).build();
 					Util.sendReply(event, msg1, true);
 				}
 			}
@@ -462,6 +545,29 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				MessageCreateBuilder builder = new MessageCreateBuilder();
 				builder.setContent("`/schedulemessage "+msg.getId()+"`");
 				Util.sendReply(event, builder.build(), true);
+			} catch (Exception e) {
+				Util.sendErrorReply(event, e, true);
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	@Override
+	public void onUserContextInteraction(UserContextInteractionEvent event) {
+		// ================== Blacklist
+		if(event.getName().equals("Add to blacklist")) {
+			try {
+				User user = event.getTarget();
+				offerHandler.addToBlacklist(event, user);
+			} catch (Exception e) {
+				Util.sendErrorReply(event, e, true);
+				e.printStackTrace();
+			}
+		}
+		else if(event.getName().equals("Remove from blacklist")) {
+			try {
+				User user = event.getTarget();
+				offerHandler.removeFromBlacklist(event, user);
 			} catch (Exception e) {
 				Util.sendErrorReply(event, e, true);
 				e.printStackTrace();
@@ -579,8 +685,11 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 					String accept = MD2Embed.matchAndGet("^!accept (\\w{5})", msg, 1);
 
 					if (accept != null) {
+						if(!DMBridge.getActiveParticipationGuilds(event.getAuthor()).isEmpty()) {
+							return;
+						}
 						User user = message.getAuthor();
-						Guild guild = offer.checkCode(user, accept);
+						Guild guild = offerHandler.checkCode(user, accept);
 						if (guild != null) {
 							Util.sendSelfDestructingDirectMessage(user, "You are now participating!", 20);
 							sendPrivateCommandHelp(user);
@@ -597,11 +706,14 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 						}
 
 					} else if (Pattern.matches("^!servers", msg)) {
-
-						dmBridgeHandler.sendActiveCompetitions(event.getAuthor());
+						if(!DMBridge.getActiveParticipationGuilds(event.getAuthor()).isEmpty()) {
+							dmBridgeHandler.sendActiveCompetitions(event.getAuthor());
+						}
 
 					} else if (Pattern.matches("^!help", msg)) {
-						sendPrivateCommandHelp(event.getAuthor());
+						if(!DMBridge.getActiveParticipationGuilds(event.getAuthor()).isEmpty()) {
+							sendPrivateCommandHelp(event.getAuthor());
+						}
 					} else {
 						dmBridgeHandler.setupReactions(message);
 						

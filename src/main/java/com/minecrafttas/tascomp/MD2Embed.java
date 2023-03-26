@@ -9,7 +9,6 @@ import java.util.regex.Pattern;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.Message.Attachment;
-import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 
 public class MD2Embed {
@@ -87,7 +86,6 @@ public class MD2Embed {
 		return builder;
 	}
 	
-	//TODO split messages
 	public static MessageCreateBuilder parseMessage(Message message, int color) throws Exception {
 		String messageString = message.getContentRaw();
 		
