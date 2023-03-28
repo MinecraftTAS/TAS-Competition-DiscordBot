@@ -17,6 +17,7 @@ import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
+import net.dv8tion.jda.api.entities.sticker.StickerItem;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.GenericCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.EntitySelectInteractionEvent;
@@ -377,6 +378,9 @@ public class Util {
 		String out="";
 		for(Attachment attachment : msg.getAttachments()) {
 			out += "\n"+attachment.getUrl();
+		}
+		for(StickerItem sticker : msg.getStickers()) {
+			out += "\n"+sticker.getIconUrl();
 		}
 		return out;
 	}

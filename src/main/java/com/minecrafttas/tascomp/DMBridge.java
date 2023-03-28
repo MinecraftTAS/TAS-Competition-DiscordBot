@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import org.slf4j.Logger;
 
@@ -25,6 +26,7 @@ import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
+import net.dv8tion.jda.api.requests.ErrorResponse;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 
@@ -141,11 +143,12 @@ public class DMBridge extends Storable{
 					initialMessage+=Util.getAttachmentsAsString(message);
 					createDMBridge(participationGuild, organizerchannel, dmUser, initialMessage);
 				} else {
-					Util.sendMessage(threadChannel, message.getContentRaw());
+					Util.sendMessage(threadChannel, message.getContentDisplay()+Util.getAttachmentsAsString(message));
 				}
 			}
 		} catch(Exception e) {
 			Util.sendErrorDirectMessage(dmUser, e);
+			e.printStackTrace();
 			return;
 		}
 		
@@ -158,7 +161,7 @@ public class DMBridge extends Storable{
 		if(channel.getType() == ChannelType.TEXT) {
 			TextChannel textchannel = (TextChannel) channel;
 			
-			textchannel.createThreadChannel(dmUser.getAsTag()+" - "+initialMessage).queue(threadchannel ->{
+			textchannel.createThreadChannel(dmUser.getAsTag()+" - "+truncate(initialMessage, 50)).queue(threadchannel ->{
 				
 				Properties prop = dmBridgeChannels.containsKey(guild.getIdLong()) ? dmBridgeChannels.get(guild.getIdLong()) : new Properties();
 				
@@ -183,8 +186,24 @@ public class DMBridge extends Storable{
 			}
 			Role role = guild.getRoleById(roleID);
 			Member member = guild.getMemberById(userIn.getIdLong());
-			if (member.getRoles().contains(role)) {
-				participateGuilds.add(guild);
+			if(member == null) {
+				try {
+					member = guild.retrieveMemberById(userIn.getId()).submit().whenComplete((member2, e) -> {
+						if (ErrorResponse.UNKNOWN_MEMBER.test(e)) {
+							return;
+						}
+					}).get();
+				} catch (InterruptedException | ExecutionException e) {
+					continue;
+				}
+			}
+			if(member != null) {
+				if (member.getRoles().contains(role)) {
+					participateGuilds.add(guild);
+				}
+			}
+			else {
+				LOGGER.error("{{}} Could not retrieve member data for {}", guild.getName(), userIn.getAsTag());
 			}
 		}
 		return participateGuilds;
@@ -201,8 +220,24 @@ public class DMBridge extends Storable{
 			}
 			Role role = guild.getRoleById(roleID);
 			Member member = guild.getMemberById(userIn.getIdLong());
-			if (member.getRoles().contains(role)) {
-				participateGuilds.add(guild);
+			if(member == null) {
+				try {
+					member = guild.retrieveMemberById(userIn.getId()).submit().whenComplete((member2, e) -> {
+						if (ErrorResponse.UNKNOWN_MEMBER.test(e)) {
+							return;
+						}
+					}).get();
+				} catch (InterruptedException | ExecutionException e) {
+					continue;
+				}
+			}
+			if(member != null) {
+				if (member.getRoles().contains(role)) {
+					participateGuilds.add(guild);
+				}
+			}
+			else {
+				LOGGER.error("{{}} Could not retrieve member data for {}", guild.getName(), userIn.getAsTag());
 			}
 		}
 		return participateGuilds;
@@ -363,6 +398,10 @@ public class DMBridge extends Storable{
 		return null;
 	}
 	
+	private String truncate(String string, int count) {
+		return string.substring(0, count)+"...";
+	}
+	
 	private User getUser(Guild guild, String threadChannelId) {
 		
 		Properties prop = dmBridgeChannels.get(guild.getIdLong());
@@ -373,7 +412,7 @@ public class DMBridge extends Storable{
 		
 		String userTag = (String) prop.get(threadChannelId);
 		
-		return guild.getMemberById(userTag).getUser();
+		return guild.retrieveMemberById(userTag).submit().join().getUser();
 	}
 
 	public void removeThread(Guild guild, ThreadChannel channel) {

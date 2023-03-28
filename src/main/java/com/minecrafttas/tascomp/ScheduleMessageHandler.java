@@ -16,6 +16,7 @@ import com.minecrafttas.tascomp.util.Util;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.utils.TimeFormat;
 import net.dv8tion.jda.api.utils.Timestamp;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
@@ -112,6 +113,7 @@ public class ScheduleMessageHandler extends Storable{
 				save(msg2.getGuild(), guildMsgs);
 
 				timerTasks.put(msg2.getIdLong(), task);
+				msg2.addReaction(Emoji.fromUnicode(Util.deletableEmoji)).queue();
 			});
 		});
 	}

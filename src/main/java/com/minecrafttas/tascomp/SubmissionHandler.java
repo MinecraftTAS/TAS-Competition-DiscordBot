@@ -162,8 +162,9 @@ public class SubmissionHandler extends Storable {
 			Object value = submission.get(key);
 			
 			String author = (String) key;
+			User user = guild.retrieveMemberById(author).submit().join().getUser();
 			String message = (String) value;
-			builder.addField(author, message.split(";", 2)[1], false);
+			builder.addField(user.getAsTag(), message.split(";", 2)[1], false);
 		}
 		embeds.add(builder.build());
 		return embeds;

@@ -231,6 +231,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		// =========================== Test
 		CommandDataImpl testCommand = new CommandDataImpl("test", "Testing things");
 		testCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
+		testCommand.addOption(OptionType.USER, "user", "Member to unload from cache", true);
 		
 		updater.addCommands(tascompCommand, setupCommand, previewContext, getRuleCommand, setRuleContext, participateCommand, forcesubmitCommand, startDMCommand, blacklistAddContext, blacklistRemoveContext, blacklistCommand, scheduleMessageCommand, helpCommand/*, testCommand*/);
 		updater.queue();
@@ -345,7 +346,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				User dmUser = event.getOption("user").getAsUser();
 				String startMessage = event.getOption("startmessage").getAsString();
 				
-				if(!RoleWrapper.doesMemberHaveRole(guild.getMemberById(dmUser.getId()), guildConfigs.getValue(guild, ConfigValues.PARTICIPATEROLE))) {
+				if(!RoleWrapper.doesMemberHaveRole(guild.retrieveMemberById(dmUser.getId()).submit().join(), guildConfigs.getValue(guild, ConfigValues.PARTICIPATEROLE))) {
 					Util.sendErrorReply(event, "The user does not participate currently", "Due to how the bot is set up, non-participants can not answer the bot, therefore making this a very one sided conversation...", true);
 					return;
 				}
@@ -435,14 +436,14 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 							+ "## 3. Setup permissions in integration settings\n"
 							+ "Due to slash commands being relatively new, you can't set permissions programmatically and have to manually add them in the server settings.\n"
 							+ "All commands are disabled by default to everyone.\n"
-							+ "Suggested command permissions:"
-							+ "*Everyone:* participate\n"
-							+ "*Organizers:* tascompetition, startdm, schedulemessage, preview embed, forcesubmit, help, blacklist\n"
-							+ "*Admins:*: setup, setrulemessage, getrulemessage\n"
+							+ "Suggested command permissions:\n"
+							+ "**Everyone:** participate\n"
+							+ "**Organizers:** tascompetition, startdm, schedulemessage, preview embed, forcesubmit, help, blacklist\n"
+							+ "**Admins:** setup, setrulemessage, getrulemessage\n"
 							+ "\n"
-							+ "*Participate Channel:* participate\n"
-							+ "*Submission Channel:* forcesubmit\n"
-							+ "*Organizerchannel:* tascompetition, startdm, schedulemessage, setup (set rule message)\n"
+							+ "**Participate Channel:** participate\n"
+							+ "**Submission Channel:** forcesubmit\n"
+							+ "**Organizerchannel:** tascompetition, startdm, schedulemessage, setup (set rule message)\n"
 							+ "The following commands send a private response only to you:\n"
 							+ "preview embed, getrulemessage, help\n"
 							+ "## 4. Set the rule message\n"
@@ -485,6 +486,10 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 					MessageCreateData msg1=new MessageCreateBuilder().setEmbeds(MD2Embed.parseEmbed(commandhelp, color).build()).build();
 					Util.sendReply(event, msg1, true);
 				}
+			}
+			else if (commandPath.equals("test")) {
+				event.getGuild().unloadMember(event.getOption("user").getAsUser().getIdLong());
+				Util.sendReply(event, "Unloaded member", true);
 			}
 		}catch (Exception e) {
 			Util.sendErrorReply(event, e, true);
@@ -685,9 +690,6 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 					String accept = MD2Embed.matchAndGet("^!accept (\\w{5})", msg, 1);
 
 					if (accept != null) {
-						if(!DMBridge.getActiveParticipationGuilds(event.getAuthor()).isEmpty()) {
-							return;
-						}
 						User user = message.getAuthor();
 						Guild guild = offerHandler.checkCode(user, accept);
 						if (guild != null) {
