@@ -161,7 +161,7 @@ public class DMBridge extends Storable{
 		if(channel.getType() == ChannelType.TEXT) {
 			TextChannel textchannel = (TextChannel) channel;
 			
-			textchannel.createThreadChannel(dmUser.getAsTag()+" - "+truncate(initialMessage, 50)).queue(threadchannel ->{
+			textchannel.createThreadChannel(dmUser.getAsTag()+" - "+truncate(initialMessage, 20)).queue(threadchannel ->{
 				
 				Properties prop = dmBridgeChannels.containsKey(guild.getIdLong()) ? dmBridgeChannels.get(guild.getIdLong()) : new Properties();
 				
@@ -399,7 +399,11 @@ public class DMBridge extends Storable{
 	}
 	
 	private String truncate(String string, int count) {
-		return string.substring(0, count)+"...";
+		if(string.length()>count) {
+			return string.substring(0, count)+"...";
+		} else {
+			return string;
+		}
 	}
 	
 	private User getUser(Guild guild, String threadChannelId) {
