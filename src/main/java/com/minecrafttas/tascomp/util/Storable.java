@@ -54,7 +54,7 @@ public class Storable {
 
 		try {
 			FileOutputStream fos = new FileOutputStream(submissionFile);
-			prop.storeToXML(fos, String.format("Guild {} for guild: {}", name, guild.getName()), "UTF-8");
+			prop.storeToXML(fos, String.format("Guild %s for guild: %s", name, guild.getName()), "UTF-8");
 			fos.close();
 		} catch (IOException e) {
 			e.printStackTrace();

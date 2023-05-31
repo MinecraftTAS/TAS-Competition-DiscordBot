@@ -1,8 +1,8 @@
-// USE GRADLE 7
+// USE GRADLE 8
 
 plugins {
     id 'java-library'
-    id("com.github.johnrengelman.shadow") version "5.1.0"
+    id("com.github.johnrengelman.shadow") version "8.1.1"
     id 'application'
 }
 
@@ -14,10 +14,12 @@ repositories {
     maven { url 'https://m2.dv8tion.net/releases' }
 }
 
-mainClassName='com.minecrafttas.tascomp.main.Main'
+application {
+	mainClass='com.minecrafttas.tascomp.main.Main'
+}
 
 dependencies {
-	implementation group: 'net.dv8tion', name: 'JDA', version: '5.0.0-beta.6'
+	implementation group: 'net.dv8tion', name: 'JDA', version: '5.0.0-beta.9'
 	implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
 	implementation files('libs/emoji-java-5.1.1.jar')
 	implementation group: 'commons-io', name: 'commons-io', version: '2.11.0'
