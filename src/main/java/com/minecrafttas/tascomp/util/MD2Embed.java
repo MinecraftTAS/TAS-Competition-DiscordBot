@@ -1,4 +1,4 @@
-package com.minecrafttas.tascomp;
+package com.minecrafttas.tascomp.util;
 
 import java.util.ArrayList;
 import java.util.List;

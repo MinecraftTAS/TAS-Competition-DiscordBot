@@ -11,15 +11,14 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 
 import com.minecrafttas.tascomp.GuildConfigs.ConfigValues;
+import com.minecrafttas.tascomp.util.MD2Embed;
 import com.minecrafttas.tascomp.util.Storable;
 import com.minecrafttas.tascomp.util.Util;
 import com.minecrafttas.tascomp.util.WarpedImage;
-import com.vdurmont.emoji.EmojiManager;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.User;
-import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.command.GenericCommandInteractionEvent;
 import net.dv8tion.jda.api.utils.FileUpload;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
@@ -61,7 +60,7 @@ public class ParticipateOffer extends Storable{
 		MessageCreateData msg = new MessageCreateBuilder().setEmbeds(embed.build()).build();
 		user.openPrivateChannel().queue(channel ->{
 			FileUpload upload = FileUpload.fromData(WarpedImage.makeCaptcha(code), "captcha.png");
-			channel.sendMessage(msg).addFiles(upload).queue(msg2->msg2.addReaction(Emoji.fromUnicode(EmojiManager.getForAlias(":x:").getUnicode())).queueAfter(5, TimeUnit.MINUTES));
+			channel.sendMessage(msg).addFiles(upload).queue(msg2->msg2.addReaction(Util.deletableEmoji).queueAfter(5, TimeUnit.MINUTES));
 		});
 		
 		offerList.put(user.getIdLong(), new Offer(guild, user, code));
