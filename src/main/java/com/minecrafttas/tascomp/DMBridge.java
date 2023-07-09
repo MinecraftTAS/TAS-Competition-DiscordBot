@@ -421,8 +421,11 @@ public class DMBridge extends Storable{
 	}
 
 	public void removeThread(Guild guild, ThreadChannel channel) {
+		if(!channel.getParentChannel().getId().equals(guildConfigs.getValue(guild, ConfigValues.ORGANIZERCHANNEL))) {
+			return;
+		}
 		Properties prop = dmBridgeChannels.get(guild.getIdLong());
-		if(prop==null) return;
+		if(prop.isEmpty()) return;
 		LOGGER.info("{{}} Removing {} from DMBridge", guild.getName(), channel.getName());
 		prop.remove(channel.getId());
 		save(guild, prop);
