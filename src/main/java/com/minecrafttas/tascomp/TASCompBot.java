@@ -10,9 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.minecrafttas.tascomp.GuildConfigs.ConfigValues;
-import com.minecrafttas.tascomp.util.RoleWrapper;
+import com.minecrafttas.tascomp.util.MD2Embed;
 import com.minecrafttas.tascomp.util.Util;
-import com.vdurmont.emoji.EmojiManager;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
@@ -26,7 +25,7 @@ import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
-import net.dv8tion.jda.api.entities.emoji.Emoji;
+import net.dv8tion.jda.api.entities.emoji.EmojiUnion;
 import net.dv8tion.jda.api.events.channel.ChannelDeleteEvent;
 import net.dv8tion.jda.api.events.channel.update.ChannelUpdateArchivedEvent;
 import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
@@ -196,6 +195,8 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		SubcommandData removeSubCommand = new SubcommandData("remove", "Removes a user from the blacklist");
 		SubcommandData clearSubCommand = new SubcommandData("clear", "Clears the blacklist");
 		
+		blacklistCommand.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
+		
 		OptionData userOption3 = new OptionData(OptionType.USER, "user", "User to blacklist");
 		userOption3.setRequired(true);
 		addSubCommand.addOptions(userOption3);
@@ -247,7 +248,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 
 	@Override
 	public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
-		LOGGER.info("{{}} {}: Running slash command {}", event.getGuild().getName(), event.getUser().getAsTag(), event.getFullCommandName());
+		LOGGER.info("{{}} {}: Running slash command {}", event.getGuild().getName(), event.getUser().getName(), event.getFullCommandName());
 		String commandPath = event.getFullCommandName().replace(" ", "/");
 		Guild guild = event.getGuild();
 		try {
@@ -286,7 +287,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				.addActionRow(EntitySelectMenu.create("organizerchannelselect", SelectTarget.CHANNEL).build())
 				.addActionRow(EntitySelectMenu.create("participateroleselect", SelectTarget.ROLE).build())
 				.addActionRow(Button.danger("clearall", "Clear All"))
-				.queue(hook-> hook.retrieveOriginal().queue(msg -> msg.addReaction(Emoji.fromUnicode(Util.deletableEmoji)).queue()));
+				.queue(hook-> hook.retrieveOriginal().queue(msg -> msg.addReaction(Util.deletableEmoji).queue()));
 			}
 			// ================== getrulemessage Command
 			else if(commandPath.startsWith("getrulemessage")) {
@@ -299,7 +300,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				
 				if (shouldExecuteParticipate(guild)) {
 					if (offerHandler != null) {
-						if (!RoleWrapper.doesMemberHaveRole(event.getMember(), guildConfigs.getValue(guild, ConfigValues.PARTICIPATEROLE))) {
+						if (!Util.doesMemberHaveRole(event.getMember(), guildConfigs.getValue(guild, ConfigValues.PARTICIPATEROLE))) {
 							
 							if(offerHandler.isOnBlacklist(guild, user)) {
 								LOGGER.info("{{}} Tried to offer to {} but the user is on the blacklist", guild.getName(), user.getName());
@@ -346,7 +347,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				User dmUser = event.getOption("user").getAsUser();
 				String startMessage = event.getOption("startmessage").getAsString();
 				
-				if(!RoleWrapper.doesMemberHaveRole(guild.retrieveMemberById(dmUser.getId()).submit().join(), guildConfigs.getValue(guild, ConfigValues.PARTICIPATEROLE))) {
+				if(!Util.doesMemberHaveRole(guild.retrieveMemberById(dmUser.getId()).submit().join(), guildConfigs.getValue(guild, ConfigValues.PARTICIPATEROLE))) {
 					Util.sendErrorReply(event, "The user does not participate currently", "Due to how the bot is set up, non-participants can not answer the bot, therefore making this a very one sided conversation...", true);
 					return;
 				}
@@ -646,14 +647,14 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 	public void onMessageReactionAdd(MessageReactionAddEvent event) {
 		if (!Util.isThisUserThisBot(event.getUserIdLong())) {
 
-			Emoji reactionEmote = event.getEmoji();
+			EmojiUnion reactionEmote = event.getEmoji();
 
-			if (reactionEmote.getFormatted().equals(EmojiManager.getForAlias(":x:").getUnicode())) {
+			if (reactionEmote.equals(Util.deletableEmoji)) {
 
 				event.retrieveMessage().queue(msg -> {
 					if (Util.isThisUserThisBot(msg.getAuthor())) {
 
-						if (Util.hasBotReactedWith(msg, EmojiManager.getForAlias(":x:").getUnicode()) || event.getChannelType() == ChannelType.PRIVATE) {
+						if (Util.hasBotReactedWith(msg, Util.deletableEmoji) || event.getChannelType() == ChannelType.PRIVATE) {
 							Util.deleteMessage(msg);
 						}
 					}
@@ -663,7 +664,7 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			// DMBridge Send
 			else if (event.getChannelType() == ChannelType.PRIVATE) {
 				event.retrieveMessage().queue(msg -> {
-					if (Util.hasBotReactedWith(msg, reactionEmote.getFormatted())) {
+					if (Util.hasBotReactedWith(msg, reactionEmote)) {
 						dmBridgeHandler.processPrivateReactions(msg, reactionEmote, event.getUser());
 					}
 				});

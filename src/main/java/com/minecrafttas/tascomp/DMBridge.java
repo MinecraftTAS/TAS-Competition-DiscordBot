@@ -11,9 +11,9 @@ import java.util.concurrent.ExecutionException;
 import org.slf4j.Logger;
 
 import com.minecrafttas.tascomp.GuildConfigs.ConfigValues;
+import com.minecrafttas.tascomp.util.MD2Embed;
 import com.minecrafttas.tascomp.util.Storable;
 import com.minecrafttas.tascomp.util.Util;
-import com.vdurmont.emoji.EmojiManager;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
@@ -26,6 +26,7 @@ import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
+import net.dv8tion.jda.api.entities.emoji.Emoji.Type;
 import net.dv8tion.jda.api.requests.ErrorResponse;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
@@ -34,7 +35,7 @@ public class DMBridge extends Storable{
 	
 	private static Logger LOGGER;
 	
-	public final Emoji singleGuildEmoji=Emoji.fromUnicode(EmojiManager.getForAlias("incoming_envelope").getUnicode());
+	public final Emoji singleGuildEmoji=Emoji.fromUnicode("\uD83D\uDCE8");
 
 	private SubmissionHandler submissionHandler;
 
@@ -153,7 +154,7 @@ public class DMBridge extends Storable{
 		}
 		
 		message.removeReaction(reactionEmote).queue();
-		Emoji envelope = Emoji.fromUnicode(EmojiManager.getForAlias(":envelope:").getUnicode());
+		Emoji envelope = Emoji.fromUnicode("\u2709");
 		message.addReaction(envelope).queue();
 	}
 	
@@ -253,7 +254,7 @@ public class DMBridge extends Storable{
 			
 		} else if (participationGuilds.size() > 1 && participationGuilds.size() < 10 && hasNumberEmoji(reactionEmote.getFormatted())) {
 			int channelNumber = 0;
-			if(EmojiManager.containsEmoji(reactionEmote.getFormatted())) {
+			if(reactionEmote.getType() == Type.UNICODE) {
 				
 				String emoji=reactionEmote.getFormatted();
 				
@@ -319,23 +320,23 @@ public class DMBridge extends Storable{
 	public static String intToUnicode(int i) {
 		switch (i) {
 		case 1:
-			return EmojiManager.getForAlias("one").getUnicode();
+			return "1\uFE0F\u20E3";
 		case 2:
-			return EmojiManager.getForAlias("two").getUnicode();
+			return "2\uFE0F\u20E3";
 		case 3:
-			return EmojiManager.getForAlias("three").getUnicode();
+			return "3\uFE0F\u20E3";
 		case 4:
-			return EmojiManager.getForAlias("four").getUnicode();
+			return "4\uFE0F\u20E3";
 		case 5:
-			return EmojiManager.getForAlias("five").getUnicode();
+			return "5\uFE0F\u20E3";
 		case 6:
-			return EmojiManager.getForAlias("six").getUnicode();
+			return "6\uFE0F\u20E3";
 		case 7:
-			return EmojiManager.getForAlias("seven").getUnicode();
+			return "7\uFE0F\u20E3";
 		case 8:
-			return EmojiManager.getForAlias("eight").getUnicode();
+			return "8\uFE0F\u20E3";
 		case 9:
-			return EmojiManager.getForAlias("nine").getUnicode();
+			return "9\uFE0F\u20E3";
 		default:
 			return null;
 		}
