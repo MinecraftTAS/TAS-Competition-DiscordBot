@@ -25,3 +25,4 @@ blacklist/
 # JDA stuff
 dv8tion/
 iwebpp/
+logs/
