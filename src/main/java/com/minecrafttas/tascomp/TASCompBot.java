@@ -730,7 +730,12 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 		}
 		else if (event.getChannel().getType() == ChannelType.GUILD_PUBLIC_THREAD) {
 			ThreadChannel threadChannel = event.getChannel().asThreadChannel();
-			if(threadChannel.getParentMessageChannel().getId().equals(guildConfigs.getValue(event.getGuild(), ConfigValues.ORGANIZERCHANNEL)) && !Util.isThisUserThisBot(event.getAuthor())) {
+			
+			if(threadChannel.getParentChannel().getType() != ChannelType.TEXT) {
+				return;
+			}
+			
+			if(threadChannel.getParentChannel().getId().equals(guildConfigs.getValue(event.getGuild(), ConfigValues.ORGANIZERCHANNEL)) && !Util.isThisUserThisBot(event.getAuthor())) {
 				dmBridgeHandler.sendDM(event.getGuild(), threadChannel, event.getMessage());
 			}
 		}
