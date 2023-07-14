@@ -77,24 +77,25 @@ public class DMBridge extends Storable{
 		
 		List<Guild> participationGuilds = DMBridge.getParticipationGuilds(message.getAuthor());
 		
-		if (participationGuilds.size() == 1) {
-			Guild guild = participationGuilds.get(0);
+		int activeGuild = 0;
+		
+		for (Guild guild : participationGuilds) {
 			if(TASCompBot.getBot().isCompetitionRunning(guild) || hasActiveThread(guild, message.getAuthor())) {
-				message.addReaction(singleGuildEmoji).queue();
+				activeGuild++;
 			}
-
-		} else if (participationGuilds.size() > 1 && participationGuilds.size() < 10) {
+		}
+		
+		if (activeGuild == 1) {
+			message.addReaction(singleGuildEmoji).queue();
+		} else if (activeGuild > 1 && activeGuild < 10) {
 			
 			if(!multiParticipationWarning.contains(message.getAuthor().getAsTag())) {
 				multiParticipationWarning.add(message.getAuthor().getAsTag());
 				sendActiveCompetitions(message.getAuthor());
 			}
 			
-			for (int i = 1; i <= participationGuilds.size(); i++) {
-				Guild guild = participationGuilds.get(i-1);
-				if(TASCompBot.getBot().isCompetitionRunning(guild) || hasActiveThread(guild, message.getAuthor())) {
-					message.addReaction(intToEmoji(i)).queue();
-				}
+			for (int i = 1; i <= activeGuild; i++) {
+				message.addReaction(intToEmoji(i)).queue();
 			}
 		}
 	}
@@ -432,9 +433,9 @@ public class DMBridge extends Storable{
 	}
 
 	public void sendDM(Guild guild, ThreadChannel threadChannel, Message msg) {
-		EmbedBuilder builder = Util.constructEmbedWithAuthor(msg, "", msg.getContentRaw(), TASCompBot.color, true);
-		builder.setFooter("Sent from "+guild.getName());
-		MessageCreateData newMsg = new MessageCreateBuilder().setEmbeds(builder.build()).build();
+		List<EmbedBuilder> builders = Util.constructEmbedWithAuthorMultiEmbed(msg, "", msg.getContentRaw(), TASCompBot.color, true);
+		builders.get(0).setFooter("Sent from "+guild.getName());
+		MessageCreateData newMsg = new MessageCreateBuilder().setEmbeds(Util.buildBuilders(builders)).build();
 		sendDM(guild, threadChannel, newMsg);
 	}
 	
