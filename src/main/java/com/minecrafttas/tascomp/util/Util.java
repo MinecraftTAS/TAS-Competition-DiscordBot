@@ -1,5 +1,6 @@
 package com.minecrafttas.tascomp.util;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -314,7 +315,7 @@ public class Util {
 	
 	public static MessageCreateData constructMessageWithAuthor(Message msg, String title, String raw, int color) {
 		
-		MessageCreateBuilder mbuilder=new MessageCreateBuilder().addEmbeds(constructEmbedWithAuthor(msg, title, raw, color, true).build());
+		MessageCreateBuilder mbuilder=new MessageCreateBuilder().addEmbeds(constructEmbedWithAuthor(msg, title, raw, color, true));
 		
 		return mbuilder.build();
 	}
@@ -324,7 +325,19 @@ public class Util {
 		return mbuilder.build();
 	}
 
-	public static EmbedBuilder constructEmbedWithAuthor(Message msg, String title, String raw, int color, boolean image) {
+	public static List<MessageEmbed> constructEmbedWithAuthor(Message msg, String title, String raw, int color, boolean image) {
+		return buildBuilders(constructEmbedWithAuthorMultiEmbed(msg, title, raw, color, image));
+	}
+	
+	public static List<MessageEmbed> buildBuilders(List<EmbedBuilder> builders){
+		List<MessageEmbed> out = new ArrayList<>();
+		for (EmbedBuilder builder : builders) {
+			out.add(builder.build());
+		}
+		return out;
+	}
+	
+	public static List<EmbedBuilder> constructEmbedWithAuthorMultiEmbed(Message msg, String title, String raw, int color, boolean image) {
 		EmbedBuilder builder = new EmbedBuilder().setAuthor(msg.getAuthor().getEffectiveName(), null, msg.getAuthor().getEffectiveAvatarUrl());
 		builder.setDescription(raw);
 		
@@ -333,20 +346,24 @@ public class Util {
 		}
 		builder.setColor(color);
 		
-		boolean flag=false;
+		List<EmbedBuilder> builders = new ArrayList<>();
+		
 		if(image) {
+			boolean flag=false;
 			for (Attachment attachment : msg.getAttachments()) {
-				String contentType=attachment.getContentType();
-				
-				if(contentType.contains("image/") && !flag) {
-					builder.setImage(attachment.getUrl());
+				if(attachment.isImage() && !flag) { 
+					builder.setImage(attachment.getUrl()).setUrl(msg.getJumpUrl());
 					flag=true;
-				} else
+				} else if(attachment.isImage() && flag) {
+					builders.add(new EmbedBuilder().setImage(attachment.getUrl()).setUrl(msg.getJumpUrl()));
+				} else {
 					builder.addField("", attachment.getUrl(), false);
+				}
 			}
 		}
+		builders.add(0, builder);
 		
-		return builder;
+		return builders;
 	}
 	
 	public static EmbedBuilder constructEmbedWithAuthor(User author, String title, String raw, int color) {

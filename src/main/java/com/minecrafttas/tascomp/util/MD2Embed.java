@@ -1,8 +1,8 @@
 package com.minecrafttas.tascomp.util;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -89,18 +89,20 @@ public class MD2Embed {
 	public static MessageCreateBuilder parseMessage(Message message, int color) throws Exception {
 		String messageString = message.getContentRaw();
 		
-		for(Attachment attachment : message.getAttachments()) {
-			messageString += "\n"+attachment.getUrl();
+		for(Attachment attachment: message.getAttachments()) {
+			messageString+=String.format("\n{%s:%s:%s}", attachment.getContentType(), attachment.getFileName(), attachment.getUrl());
 		}
 		
-		return parseMessage(messageString, color);
+		MessageCreateBuilder builder = parseMessage(messageString, color);
+		
+		return builder;
 	}
 	
 	public static String parseMessageAsString(Message message) {
 		String messageString = message.getContentRaw();
 		
 		for(Attachment attachment : message.getAttachments()) {
-			messageString += "\n"+attachment.getUrl();
+			messageString+=String.format("\n{%s:%s:%s}", attachment.getContentType(), attachment.getFileName(), attachment.getUrl());
 		}
 		
 		return messageString;
@@ -114,9 +116,9 @@ public class MD2Embed {
 		List<String> messageLines = new ArrayList<>();
 		
 		List<String> embedString = new ArrayList<>();
-		ConcurrentLinkedQueue<EmbedBuilder> embeds = new ConcurrentLinkedQueue<>();
+		List<EmbedBuilder> embeds = new ArrayList<>();
 		
-		
+		boolean createNewEmbedForImage = true;
 		for (int i = 0; i < lines.length; i++) {
 			String line = lines[i];
 //			int linenumber = i+1;
@@ -129,10 +131,25 @@ public class MD2Embed {
 				} else {
 					embedString.add(line);
 					embeds.add(MD2Embed.parseEmbed(embedString, color));
+					createNewEmbedForImage = false;
 					continue;
 				}
 			}
-
+			else if(line.matches("\\{(.+):(.+):(.+)\\}")) {
+				String type = matchAndGet("\\{(.+?):(.+?):(.+?)\\}", line, 1);
+				String filename = matchAndGet("\\{(.+?):(.+?):(.+?)\\}", line, 2);
+				String url = matchAndGet("\\{(.+?):(.+?):(.+?)\\}", line, 3);
+				if(type.startsWith("image/") && !createNewEmbedForImage) {
+					createNewEmbedForImage = true;
+					embeds.get(embeds.size()-1).setUrl("https://minecrafttas.com").setImage(url);
+				} else if(type.startsWith("image/") && createNewEmbedForImage){
+					embeds.add(new EmbedBuilder().setUrl("https://minecrafttas.com").setImage(url));
+				} else {
+					embeds.add(new EmbedBuilder().setTitle(filename, url));
+				}
+				continue;
+			}
+			
 			if (insideBlock) {
 				embedString.add(line);
 			} else {
@@ -144,9 +161,9 @@ public class MD2Embed {
 		
 		builder.setContent(String.join("\n", messageLines));
 		
-		EmbedBuilder embed = null;
-		
-		while((embed = embeds.poll()) != null) {
+		Iterator<EmbedBuilder> iterator = embeds.iterator();
+		while(iterator.hasNext()) {
+			EmbedBuilder embed = iterator.next();
 			builder.addEmbeds(embed.build());
 		}
 		
