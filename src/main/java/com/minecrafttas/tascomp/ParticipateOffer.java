@@ -171,7 +171,7 @@ public class ParticipateOffer extends Storable{
 	    int length = 5;
 	    boolean useLetters = true;
 	    boolean useNumbers = true;
-	    String generatedString = RandomStringUtils.random(length, useLetters, useNumbers);
+	    String generatedString = RandomStringUtils.insecure().next(length, useLetters, useNumbers);
 	    return generatedString;
 	}
 	

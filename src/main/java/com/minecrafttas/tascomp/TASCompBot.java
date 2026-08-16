@@ -1,6 +1,5 @@
 package com.minecrafttas.tascomp;
 
-import java.util.List;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
@@ -16,6 +15,10 @@ import com.minecrafttas.tascomp.util.Util;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.selections.EntitySelectMenu;
+import net.dv8tion.jda.api.components.selections.EntitySelectMenu.SelectTarget;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.Role;
@@ -44,9 +47,6 @@ import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.selections.EntitySelectMenu;
-import net.dv8tion.jda.api.interactions.components.selections.EntitySelectMenu.SelectTarget;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
@@ -282,11 +282,11 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 			else if (commandPath.startsWith("setup")) {
 				
 				event.reply(Util.constructEmbedMessage("Setup:", getSetup(guild), color))
-				.addActionRow(EntitySelectMenu.create("participatechannelselect", SelectTarget.CHANNEL).build())
-				.addActionRow(EntitySelectMenu.create("submitchannelselect", SelectTarget.CHANNEL).build())
-				.addActionRow(EntitySelectMenu.create("organizerchannelselect", SelectTarget.CHANNEL).build())
-				.addActionRow(EntitySelectMenu.create("participateroleselect", SelectTarget.ROLE).build())
-				.addActionRow(Button.danger("clearall", "Clear All"))
+				.addComponents(ActionRow.of(EntitySelectMenu.create("participatechannelselect", SelectTarget.CHANNEL).build()))
+				.addComponents(ActionRow.of(EntitySelectMenu.create("submitchannelselect", SelectTarget.CHANNEL).build()))
+				.addComponents(ActionRow.of(EntitySelectMenu.create("organizerchannelselect", SelectTarget.CHANNEL).build()))
+				.addComponents(ActionRow.of(EntitySelectMenu.create("participateroleselect", SelectTarget.ROLE).build()))
+				.addComponents(ActionRow.of(Button.danger("clearall", "Clear All")))
 				.queue(hook-> hook.retrieveOriginal().queue(msg -> msg.addReaction(Util.deletableEmoji).queue()));
 			}
 			// ================== getrulemessage Command
@@ -719,11 +719,6 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 						}
 					} else {
 						dmBridgeHandler.setupReactions(message);
-						
-						List<Guild> guilds = DMBridge.getActiveParticipationGuilds(event.getAuthor());
-						if(guilds.size()>0 && Pattern.matches("^!submit (.+)", message.getContentRaw()) && !dmBridgeHandler.hasSubmitted(event.getAuthor(), guilds)) {
-							Util.sendDeletableDirectMessage(event.getAuthor(), "*Tip:*\nTo send off the submission, react with "+dmBridgeHandler.singleGuildEmoji.getAsReactionCode()+" to your message");
-						}
 					}
 				}
 			});
@@ -750,8 +745,8 @@ public class TASCompBot extends ListenerAdapter implements Runnable {
 				+ "If the message was sent correctly, the bot will react with a \u2709\uFE0F\n\n"
 				+ "There are also commands you can use in DM's:");
 		
-		builder.addField("!submit <link to submission and/or meme run>", "Adds a submission. To overwrite the last submission, just use `!submit` again.\n\n"
-				+ "*Example:* `!submit Submission: https://www.youtube.com/watch?v=3Tk6WaigTQk MemeRun: https://www.youtube.com/watch?v=dQw4w9WgXcQ`",false);
+		builder.addField("!submit + Text or File", "Adds a submission. You can submit text and/or files, depending on the submission criteria. To overwrite the last submission, just use `!submit` again.\n\n"
+				+ "*Example:* `!submit Submission: https://www.youtube.com/watch?v=3Tk6WaigTQk or upload a file in this message`",false);
 		
 		builder.addField("!servers", "A list of servers hosting a TAS Competition and in which you are participating. Useful if this bot is used for multiple TAS Competitions on different servers", false);
 		builder.addField("!help", "Get this help again", false);

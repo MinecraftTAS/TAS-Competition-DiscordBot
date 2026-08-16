@@ -6,7 +6,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 
@@ -35,6 +38,8 @@ public class DMBridge extends Storable{
 	
 	private static Logger LOGGER;
 	
+	private static Timer timer= new Timer();
+	
 	public final Emoji singleGuildEmoji=Emoji.fromUnicode("\uD83D\uDCE8");
 
 	private SubmissionHandler submissionHandler;
@@ -42,6 +47,8 @@ public class DMBridge extends Storable{
 	private GuildConfigs guildConfigs;
 	
 	private List<String> multiParticipationWarning = new ArrayList<>();
+	
+	private HashMap<User, TimerTask> reactionWarning = new HashMap<>();
 	
 	private HashMap<Long, Properties> dmBridgeChannels = new HashMap<>();
 	
@@ -61,7 +68,7 @@ public class DMBridge extends Storable{
 			
 			Properties tempProp = (Properties) prop.clone();
 			
-			tempProp.forEach((threadchannelID, user)->{
+			tempProp.forEach((threadchannelID, _)->{
 				ThreadChannel threadchannel = guild.getChannelById(ThreadChannel.class, (String)threadchannelID);
 				if(threadchannel == null || threadchannel.isArchived()) {
 					LOGGER.warn("Removing channel {} from DMBridge", threadchannelID);
@@ -87,6 +94,9 @@ public class DMBridge extends Storable{
 		
 		if (activeGuild == 1) {
 			message.addReaction(singleGuildEmoji).queue();
+			
+			createReactionWarningTimer(message.getAuthor());
+			
 		} else if (activeGuild > 1 && activeGuild < 10) {
 			
 			if(!multiParticipationWarning.contains(message.getAuthor().getAsTag())) {
@@ -109,14 +119,31 @@ public class DMBridge extends Storable{
 			return;
 		}
 		
+		// Remove reaction warning
+		if(reactionWarning.containsKey(dmUser)) {
+			LOGGER.info("Removing reaction warning timer for user {}", dmUser.getName());
+			reactionWarning.get(dmUser).cancel();
+			reactionWarning.remove(dmUser);
+		}
+		
 		try {
-			//Submit command
-			String submit = MD2Embed.matchAndGet("^!submit (.+)", message.getContentRaw(), 1);
 			
-			if(submit!=null) {
+			//Submit command
+			
+			String messageContent = message.getContentRaw();
+			if(messageContent.startsWith("!submit")) {
+				String submit = MD2Embed.matchAndGet("^!submit ?(.+)?", message.getContentRaw(), 1);
+				if(submit == null)
+					submit = "";
 				
 				if(TASCompBot.getBot().isCompetitionRunning(participationGuild)) {
-					if (submit.length() > 1024) {
+					
+					if(submit.isEmpty() && message.getAttachments().isEmpty()) {
+						Util.sendErrorDirectMessage(dmUser, "The submission is empty!", "Edit your message and react with " + singleGuildEmoji.getAsReactionCode() + " to try again.");
+						return;
+					}
+					
+					if (messageContent.length() > 1024) {
 						Util.sendErrorDirectMessage(dmUser, "The submission is too long!", "A submission has a maximum char length of 1024 characters.\n" + "Edit your message and react with " + singleGuildEmoji.getAsReactionCode() + " to try again.");
 						return;
 					}
@@ -139,7 +166,7 @@ public class DMBridge extends Storable{
 						return;
 					}
 					MessageChannel organizerchannel = participationGuild
-							.getChannelById(MessageChannel.class, guildConfigs.getValue(participationGuild, ConfigValues.ORGANIZERCHANNEL));
+							.getTextChannelById(guildConfigs.getValue(participationGuild, ConfigValues.ORGANIZERCHANNEL));
 					
 					String initialMessage = message.getContentRaw();
 					initialMessage+=Util.getAttachmentsAsString(message);
@@ -163,7 +190,7 @@ public class DMBridge extends Storable{
 		if(channel.getType() == ChannelType.TEXT) {
 			TextChannel textchannel = (TextChannel) channel;
 			
-			textchannel.createThreadChannel(dmUser.getAsTag()+" - "+truncate(initialMessage, 20)).queue(threadchannel ->{
+			textchannel.createThreadChannel(dmUser.getName()+" - "+truncate(initialMessage, 20)).queue(threadchannel ->{
 				
 				Properties prop = dmBridgeChannels.containsKey(guild.getIdLong()) ? dmBridgeChannels.get(guild.getIdLong()) : new Properties();
 				
@@ -175,9 +202,38 @@ public class DMBridge extends Storable{
 		}
 		
 	}
-
-	public static List<Guild> getActiveParticipationGuilds(User userIn) {
+	
+	private void createReactionWarningTimer(User userIn) {
 		
+		if(reactionWarning.containsKey(userIn)) {
+			LOGGER.info("Refreshing reaction warning timer for {}", userIn.getName());	
+			reactionWarning.get(userIn).cancel();
+		} else {
+			LOGGER.info("Creating reaction warning timer for {}", userIn.getName());	
+		}
+		
+		TimerTask task = new TimerTask() {
+			
+			@Override
+			public void run() {
+				LOGGER.info("Sending reaction warning to {}", userIn.getName());
+				String reaction = singleGuildEmoji.getAsReactionCode();
+				Util.sendDeletableDirectMessage(userIn, String.format("*Tip:*\n"
+						+ "To send off the message/submission, react with %s to **your** message\n"
+						+ "\n"
+						+ "想要发送消息或提交你的TAS，请点击你的消息下方的%s\n"
+						+ "\n"
+						+ "主催者にメッセージを送信・提出するには、送信したいメッセージの下の%sをクリックしてください", reaction, reaction, reaction));
+				reactionWarning.remove(userIn);
+			}
+			
+		};
+		timer.schedule(task, TimeUnit.MINUTES.toMillis(3));
+		reactionWarning.put(userIn, task);
+	}
+
+	
+	public static List<Guild> getActiveParticipationGuilds(User userIn) {
 		List<Guild> guilds = TASCompBot.getBot().getJDA().getGuilds();
 		List<Guild> participateGuilds = new ArrayList<>();
 		for (Guild guild : guilds) {
@@ -190,7 +246,7 @@ public class DMBridge extends Storable{
 			Member member = guild.getMemberById(userIn.getIdLong());
 			if(member == null) {
 				try {
-					member = guild.retrieveMemberById(userIn.getId()).submit().whenComplete((member2, e) -> {
+					member = guild.retrieveMemberById(userIn.getId()).submit().whenComplete((_, e) -> {
 						if (ErrorResponse.UNKNOWN_MEMBER.test(e)) {
 							return;
 						}
@@ -205,9 +261,10 @@ public class DMBridge extends Storable{
 				}
 			}
 			else {
-				LOGGER.error("{{}} Could not retrieve member data for {}", guild.getName(), userIn.getAsTag());
+				LOGGER.error("{{}} Could not retrieve member data for {}", guild.getName(), userIn.getName());
 			}
 		}
+		
 		return participateGuilds;
 	}
 	
@@ -224,7 +281,7 @@ public class DMBridge extends Storable{
 			Member member = guild.getMemberById(userIn.getIdLong());
 			if(member == null) {
 				try {
-					member = guild.retrieveMemberById(userIn.getId()).submit().whenComplete((member2, e) -> {
+					member = guild.retrieveMemberById(userIn.getId()).submit().whenComplete((_, e) -> {
 						if (ErrorResponse.UNKNOWN_MEMBER.test(e)) {
 							return;
 						}
@@ -239,7 +296,7 @@ public class DMBridge extends Storable{
 				}
 			}
 			else {
-				LOGGER.error("{{}} Could not retrieve member data for {}", guild.getName(), userIn.getAsTag());
+				LOGGER.error("{{}} Could not retrieve member data for {}", guild.getName(), userIn.getName());
 			}
 		}
 		return participateGuilds;
@@ -445,7 +502,7 @@ public class DMBridge extends Storable{
 			return;
 		}
 		User user = getUser(guild, threadChannel.getId());
-		LOGGER.info("{{}} Sending dmbridge to {}", guild.getName(), user.getAsTag());
+		LOGGER.info("{{}} Sending dmbridge to {}", guild.getName(), user.getName());
 		Util.sendDeletableDirectMessage(user, msg);
 	}
 	
