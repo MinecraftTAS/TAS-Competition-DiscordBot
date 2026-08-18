@@ -105,7 +105,7 @@ public class SubmissionHandler extends Storable {
 		Properties guildSubmission = guildProperties.get(event.getGuild().getIdLong());
 		guildSubmission.remove(author.getId());
 		save(event.getGuild(), guildSubmission);
-		Util.sendDeletableReply(event, "Cleared submission of " + author.getAsTag());
+		Util.sendDeletableReply(event, "Cleared submission of " + author.getName());
 	}
 
 	public void clearAllSubmissions(GenericCommandInteractionEvent event) {
@@ -140,13 +140,17 @@ public class SubmissionHandler extends Storable {
 	}
 
 	private List<MessageEmbed> getSubmissionList(Guild guild) {
+		List<MessageEmbed> embeds = new ArrayList<>();
 		Properties submission = guildProperties.get(guild.getIdLong());
+		
+		if(submission.isEmpty())
+			return embeds;
+		
 		EmbedBuilder builder = new EmbedBuilder();
 		builder.setTitle("All submissions!");
 		int color = 0x00EAFF;
 		builder.setColor(color);
 
-		List<MessageEmbed> embeds = new ArrayList<>();
 		
 		Set<Object> keys = submission.keySet();
 		
@@ -164,7 +168,7 @@ public class SubmissionHandler extends Storable {
 			String author = (String) key;
 			User user = guild.retrieveMemberById(author).submit().join().getUser();
 			String message = (String) value;
-			builder.addField(user.getAsTag(), message.split(";", 2)[1], false);
+			builder.addField(user.getName(), message.split(";", 2)[1], false);
 		}
 		embeds.add(builder.build());
 		return embeds;
